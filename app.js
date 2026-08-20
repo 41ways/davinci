@@ -315,20 +315,20 @@
     wrap.appendChild(el('h3', null, '바닥 ' + v.poolCount + '장 (검정 ' + nb + ' · 흰색 ' + (v.poolCount - nb) + ')' +
                                     (canPick ? ' — 한 장 고르세요' : '')));
 
-    // 색끼리 묶어 보여준다. 어차피 같은 색끼리는 구별할 수 없으니 정보가 새지 않는다.
-    var order = v.pool.map(function (t, i) { return { t: t, i: i }; });
-    order.sort(function (a, b) {
-      if (a.t.color === b.t.color) return a.i - b.i;
-      return a.t.color === 'b' ? -1 : 1;
+    // 위는 검정, 아래는 흰색으로 줄을 나눈다.
+    // 같은 색끼리는 어차피 구별할 수 없으니 정렬해도 정보가 새지 않는다.
+    ['b', 'w'].forEach(function (color) {
+      var row = el('div', 'pile');
+      var any = false;
+      v.pool.forEach(function (t, i) {
+        if (t.color !== color) return;
+        any = true;
+        var e = tileEl({ color: color, n: null, joker: null }, false, {});
+        if (canPick) e.onclick = function () { act('draw', [i]); };
+        row.appendChild(e);
+      });
+      if (any) wrap.appendChild(row);
     });
-    var pile = el('div', 'pile');
-    order.forEach(function (o, k) {
-      var e = tileEl({ color: o.t.color, n: null, joker: null }, false, {});
-      if (k > 0 && order[k - 1].t.color !== o.t.color) e.classList.add('gapbefore');
-      if (canPick) e.onclick = function () { act('draw', [o.i]); };
-      pile.appendChild(e);
-    });
-    wrap.appendChild(pile);
 
     if (v.hasDrawn && isMyTurn(v) && v.drawn) {
       var b = el('div', 'drawn-box');
