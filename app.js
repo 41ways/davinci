@@ -7,7 +7,7 @@
 
   var App = {
     mode: null, net: null, state: null, view: null, me: null,
-    seats: [], sel: null, setupSel: null, started: false, botTimer: null, skill: 0.75,
+    seats: [], sel: null, setupSelColor: null, started: false, botTimer: null, skill: 0.75,
     shownEvent: null, animateEv: null
   };
 
@@ -32,7 +32,7 @@
     App.started = true;
     App.state = R.newGame(App.seats.map(function (s) { return { id: s.id, name: s.name }; }),
                           Math.floor(Math.random() * 1e9));
-    App.sel = null; App.setupSel = null; App.shownEvent = null;
+    App.sel = null; App.setupSelColor = null; App.shownEvent = null;
     show('game');
     pushViews();
   }
@@ -53,7 +53,7 @@
     if (!s || s.phase === 'over') return;
     if (s.phase === 'setup') {
       var waiting = App.seats.filter(function (st) { return st.bot && !s.ready[st.id]; });
-      if (waiting.length) App.botTimer = setTimeout(botSetupStep, 550);
+      if (waiting.length) App.botTimer = setTimeout(botSetupStep, 420);
       return;
     }
     var seat = seatOf(R.current(s).id);
@@ -67,6 +67,11 @@
     if (!seat) return;
     var p = null;
     s.players.forEach(function (x) { if (x.id === seat.id) p = x; });
+    if (p && p.hand.length < s.handSize) {
+      R.draftPick(s, seat.id, Math.floor(Math.random() * s.pool.length));
+      pushViews();
+      return;                                  // 한 장씩 집는 게 보이도록
+    }
     if (p) {
       var jk = -1;
       p.hand.forEach(function (x, i) { if (R.isJoker(x.tile) && jk < 0) jk = i; });
@@ -100,7 +105,8 @@
   function doAction(pid, action, args) {
     var s = App.state, r = null;
     if (!s) return;
-    if (action === 'setupMove') r = R.setupMove(s, pid, args[0], args[1]);
+    if (action === 'draftPick') r = R.draftPick(s, pid, args[0]);
+    else if (action === 'setupMove') r = R.setupMove(s, pid, args[0], args[1]);
     else if (action === 'setupReady') r = R.setupReady(s, pid);
     else if (action === 'draw') r = R.draw(s, pid, args[0]);
     else if (action === 'guess') r = R.guess(s, pid, args[0], args[1], args[2], args[3]);
@@ -127,7 +133,8 @@
 
   function tileEl(tile, faceUp, opts) {
     opts = opts || {};
-    var e = el('div', 'tile ' + tile.color + (opts.big ? ' big' : ''));
+    var e = el('div', 'tile ' + (tile.color || 'unknown') + (opts.big ? ' big' : ''));
+    if (!tile.color) { e.classList.add('down'); return e; }
     var known = faceUp || opts.own;
     if (known) {
       if (tile.joker) { e.classList.add('joker'); e.textContent = '조커'; }
@@ -180,10 +187,12 @@
   /* ---------------- 자리 ---------------- */
   function playerBox(v, p, big) {
     var isMe = p.id === v.me;
-    var isTurn = v.players[v.turn] && v.players[v.turn].id === p.id && v.phase !== 'over';
+    var isTurn = v.phase !== 'over' && v.phase !== 'setup' &&
+                 v.players[v.turn] && v.players[v.turn].id === p.id;
     var box = el('div', 'player' + (isMe ? ' mine' : '') + (isTurn ? ' turn' : '') + (p.out ? ' out' : ''));
 
     var head = el('div', 'phead');
+    if (isTurn) head.appendChild(el('span', 'turnbadge', isMe ? '내 차례' : '차례'));
     head.appendChild(el('span', 'who', p.name + (isMe ? ' (나)' : '')));
     var hid = p.hand.filter(function (s) { return !s.faceUp; }).length;
     head.appendChild(el('span', 'meta', p.out ? '탈락' : ('숨은 ' + hid + '장')));
@@ -191,12 +200,15 @@
       head.appendChild(el('span', 'meta', '· ' + (v.drawnColor === 'b' ? '검정' : '흰색') + ' 집음'));
     }
     if (v.phase === 'setup' && !p.out) {
-      head.appendChild(el('span', 'meta', v.ready[p.id] ? '· 준비 완료' : '· 정리 중'));
+      head.appendChild(el('span', 'meta', v.ready[p.id]
+        ? '· 준비 완료'
+        : '· ' + p.hand.length + '/' + v.handSize + '장'));
     }
     box.appendChild(head);
 
-    // 시작 정리 중: 내 조커를 어디든 옮길 수 있다
-    if (isMe && v.phase === 'setup' && !v.ready[v.me] && setupSelIndex(v) !== null) {
+    // 시작 정리 중: 손패를 다 채웠고 조커가 있으면 자리를 고를 수 있다
+    if (isMe && v.phase === 'setup' && !v.ready[v.me] &&
+        p.hand.length >= v.handSize && setupSelIndex(v) !== null) {
       box.appendChild(setupRow(v, p, big));
       box.appendChild(dirBar());
       return box;
@@ -232,35 +244,48 @@
 
   // 자리는 언제나 전부 보여준다. 숫자 패도 고르는 것처럼 보여야
   // "자리를 고른다 = 조커다" 가 드러나지 않는다.
-  // 지금 자리를 정하고 있는 조커의 손패 위치
+  function myPlayer(v) {
+    for (var i = 0; i < v.players.length; i++) if (v.players[i].id === v.me) return v.players[i];
+    return null;
+  }
+
+  // 지금 자리를 정하고 있는 조커의 손패 위치. 옮겨도 선택이 유지되도록 색으로 기억한다.
   function setupSelIndex(v) {
     var js = v.myJokers || [];
     if (!js.length) return null;
-    if (App.setupSel !== null && js.indexOf(App.setupSel) >= 0) return App.setupSel;
+    var mine = myPlayer(v);
+    if (App.setupSelColor && mine) {
+      for (var i = 0; i < js.length; i++) {
+        if (mine.hand[js[i]].tile.color === App.setupSelColor) return js[i];
+      }
+    }
     return js[0];
   }
 
-  // 고른 조커를 빼놓고 나머지를 늘어놓은 뒤, 틈마다 자리를 만든다
+  // 조커를 손패 안에 그대로 두고, 틈마다 자리를 만든다.
+  // 조커가 빠진 채로 그리면 자리를 눌러도 화면이 안 변해 눌렸는지 알 수 없다.
   function setupRow(v, p, big) {
     var sel = setupSelIndex(v);
     var row = el('div', 'slots');
-    var rest = [];
-    p.hand.forEach(function (slot, i) { if (i !== sel) rest.push({ slot: slot, i: i }); });
 
-    function slotBtn(to) {
+    // 화면상의 틈 -> 조커를 뺀 기준의 자리
+    function toIndex(gap) { return gap <= sel ? gap : gap - 1; }
+    function slotBtn(gap) {
       var e = el('div', 'slot' + (big ? ' big' : '') + ' ok');
-      e.onclick = function () { act('setupMove', [sel, to]); };
+      e.onclick = function () { act('setupMove', [sel, toIndex(gap)]); };
       return e;
     }
+
     row.appendChild(slotBtn(0));
-    rest.forEach(function (o, k) {
-      var t = tileEl(o.slot.tile, o.slot.faceUp, { big: big, own: true });
-      if (R.isJoker(o.slot.tile)) {
+    p.hand.forEach(function (slot, i) {
+      var t = tileEl(slot.tile, slot.faceUp, { big: big, own: true });
+      if (R.isJoker(slot.tile)) {
         t.classList.add('pick');
-        t.onclick = function () { App.setupSel = o.i; render(); };
+        if (i === sel) t.classList.add('arranging');
+        t.onclick = function () { App.setupSelColor = slot.tile.color; render(); };
       }
       row.appendChild(t);
-      row.appendChild(slotBtn(k + 1));
+      row.appendChild(slotBtn(i + 1));
     });
     return row;
   }
@@ -288,23 +313,20 @@
   }
 
   function floorBox(v) {
-    // 시작 정리 중에는 바닥 대신 정리 중인 조커를 보여준다
+    // 시작 단계: 바닥에서 손패를 직접 골라 온다
     if (v.phase === 'setup') {
-      var w0 = el('div', 'floor');
-      var sel = setupSelIndex(v);
-      var mine = null;
-      v.players.forEach(function (p) { if (p.id === v.me) mine = p; });
-      if (sel !== null && mine && !v.ready[v.me]) {
-        w0.appendChild(el('h3', null, '이 조커의 자리를 고르세요'));
-        var b0 = el('div', 'drawn-box');
-        var je = tileEl(mine.hand[sel].tile, false, { big: true, own: true });
-        je.classList.add('drawn');
-        b0.appendChild(je);
-        if ((v.myJokers || []).length > 1) b0.appendChild(el('span', null, '조커가 둘입니다 — 다른 조커를 눌러 바꿀 수 있어요'));
-        w0.appendChild(b0);
-      } else {
-        w0.appendChild(el('h3', null, v.ready[v.me] ? '다른 사람을 기다리는 중' : '손패를 확인하세요'));
+      var mine = myPlayer(v);
+      var need = v.handSize - (mine ? mine.hand.length : 0);
+      if (need > 0 && !v.ready[v.me]) {
+        var w1 = el('div', 'floor can');
+        w1.appendChild(el('h3', null, '바닥에서 ' + need + '장 더 고르세요 (색만 보고 고릅니다)'));
+        poolRows(w1, v, true);
+        return w1;
       }
+      var w0 = el('div', 'floor');
+      w0.appendChild(el('h3', null, v.ready[v.me] ? '다른 사람이 끝내기를 기다리는 중'
+                                                  : '손패 정리를 마치면 준비를 누르세요'));
+      poolRows(w0, v, false);
       return w0;
     }
 
@@ -315,20 +337,7 @@
     wrap.appendChild(el('h3', null, '바닥 ' + v.poolCount + '장 (검정 ' + nb + ' · 흰색 ' + (v.poolCount - nb) + ')' +
                                     (canPick ? ' — 한 장 고르세요' : '')));
 
-    // 위는 검정, 아래는 흰색으로 줄을 나눈다.
-    // 같은 색끼리는 어차피 구별할 수 없으니 정렬해도 정보가 새지 않는다.
-    ['b', 'w'].forEach(function (color) {
-      var row = el('div', 'pile');
-      var any = false;
-      v.pool.forEach(function (t, i) {
-        if (t.color !== color) return;
-        any = true;
-        var e = tileEl({ color: color, n: null, joker: null }, false, {});
-        if (canPick) e.onclick = function () { act('draw', [i]); };
-        row.appendChild(e);
-      });
-      if (any) wrap.appendChild(row);
-    });
+    poolRows(wrap, v, canPick, 'draw');
 
     if (v.hasDrawn && isMyTurn(v) && v.drawn) {
       var b = el('div', 'drawn-box');
@@ -344,6 +353,23 @@
       wrap.appendChild(b2);
     }
     return wrap;
+  }
+
+  // 위는 검정, 아래는 흰색. 같은 색끼리는 구별할 수 없으니 정렬해도 정보가 새지 않는다.
+  function poolRows(wrap, v, canPick, action) {
+    action = action || 'draftPick';
+    ['b', 'w'].forEach(function (color) {
+      var row = el('div', 'pile');
+      var any = false;
+      v.pool.forEach(function (t, i) {
+        if (t.color !== color) return;
+        any = true;
+        var e = tileEl({ color: color, n: null, joker: null }, false, {});
+        if (canPick) e.onclick = function () { act(action, [i]); };
+        row.appendChild(e);
+      });
+      if (any) wrap.appendChild(row);
+    });
   }
 
   function eventKey(ev) { return ev ? JSON.stringify(ev) : ''; }
@@ -366,8 +392,15 @@
       var total = v.players.filter(function (p) { return !p.out; }).length;
       $('turnInfo').textContent = '손패 정리 — 준비 ' + done + '/' + total;
     } else {
-      $('turnInfo').textContent = v.phase === 'over' ? '게임 종료'
-        : (cur ? (cur.id === v.me ? '내 차례' : cur.name + '의 차례') : '—');
+      $('turnInfo').innerHTML = '';
+      if (v.phase === 'over') $('turnInfo').textContent = '게임 종료';
+      else if (cur) {
+        var dot = el('span', 'turndot');
+        var who = el('span', 'turnwho', cur.id === v.me ? '내 차례' : cur.name + '의 차례');
+        if (cur.id === v.me) who.classList.add('mineturn');
+        $('turnInfo').appendChild(dot);
+        $('turnInfo').appendChild(who);
+      }
     }
 
     var others = [], meP = null, n = v.players.length;
@@ -415,14 +448,23 @@
 
     if (v.phase === 'setup') {
       if (v.ready[v.me]) {
-        panel.appendChild(el('div', 'waiting', '다른 사람이 정리를 마치기를 기다리는 중…'));
+        panel.appendChild(el('div', 'waiting', '다른 사람이 끝내기를 기다리는 중…'));
         return;
       }
       var sp = el('div', 'pnl');
+      var mineP = myPlayer(v);
+      var need = v.handSize - (mineP ? mineP.hand.length : 0);
+      if (need > 0) {
+        sp.appendChild(el('div', 'ask',
+          '시작 손패를 직접 고릅니다. 바닥에서 ' + need + '장 더 고르세요. ' +
+          '색만 보고 고르며, 숫자는 가져온 뒤에 확인합니다.'));
+        panel.appendChild(sp);
+        return;
+      }
       var hasJk = (v.myJokers || []).length > 0;
       sp.appendChild(el('div', 'ask', hasJk
-        ? '시작 손패를 정리합니다. 조커는 어느 자리에나 둘 수 있어요. 상대가 눈치채기 어려운 자리를 고르세요.'
-        : '시작 손패를 확인하세요. 숫자는 순서가 정해져 있어 옮길 수 없습니다.'));
+        ? '조커는 어느 자리에나 둘 수 있습니다. 자리를 고른 뒤 준비를 누르세요. 준비를 누르기 전까지 내 패의 색은 아무도 볼 수 없습니다.'
+        : '손패를 확인하세요. 숫자 패는 순서가 정해져 있어 옮길 수 없습니다. 준비를 누르면 색이 공개됩니다.'));
       var rb = el('button', 'primary', '준비 완료');
       rb.style.marginBottom = '0';
       rb.onclick = function () { act('setupReady', []); };

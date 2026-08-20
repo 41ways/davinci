@@ -9,6 +9,7 @@ function P(n){ var a=[]; for(var i=0;i<n;i++) a.push({id:'p'+i,name:'P'+i}); ret
 function begin(s, rng){
   rng = rng || Math.random;
   s.players.forEach(function(p){
+    while (p.hand.length < s.handSize) R.draftPick(s, p.id, Math.floor(rng() * s.pool.length));
     var jk = -1;
     p.hand.forEach(function(x,i){ if (R.isJoker(x.tile) && jk < 0) jk = i; });
     if (jk >= 0) R.setupMove(s, p.id, jk, Math.floor(rng() * p.hand.length));

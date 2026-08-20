@@ -104,6 +104,15 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .seat .pill.host { background: var(--accent-soft); color: var(--accent); }
 
 /* ---------- 상단 바 ---------- */
+.turndot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none;
+  animation: blip 1.3s ease-in-out infinite;
+}
+@keyframes blip { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+.turnwho { font-size: 15px; font-weight: 800; }
+.turnwho.mineturn { color: var(--accent); }
+#turnInfo { display: flex; align-items: center; gap: 8px; }
+
 .bar {
   display: flex; align-items: center; gap: 10px;
   padding: 11px 14px; font-size: 13px; font-weight: 600;
@@ -136,7 +145,16 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
   background: var(--panel); border: 1px solid var(--line);
   box-shadow: 0 1px 2px rgba(74,57,33,.06);
 }
-.player.turn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.player.turn {
+  border-color: var(--accent); background: #fffaf4;
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 4px 14px rgba(180,87,31,.16);
+}
+.player:not(.turn):not(.mine) { opacity: .82; }
+.turnbadge {
+  font-size: 10px; font-weight: 800; letter-spacing: .06em;
+  padding: 3px 8px; border-radius: 20px;
+  background: var(--accent); color: var(--accent-ink);
+}
 .player.out { opacity: .45; }
 .player.mine { padding: 15px; background: var(--panel); }
 .phead { display: flex; align-items: center; gap: 7px; font-size: 12.5px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -178,6 +196,15 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 }
 .tile.b::before { background: linear-gradient(180deg, rgba(255,255,255,.16), transparent); }
 
+/* 아직 색조차 모르는 패 (시작 정리 중인 남의 패) */
+.tile.unknown {
+  background: repeating-linear-gradient(135deg, #d9cfba 0 6px, #cfc4ac 6px 12px);
+  color: #8b7f68; border-color: #bdb098;
+  box-shadow: 0 4px 0 #a2967e80, var(--shadow-lift);
+}
+.tile.unknown::before { content: none; }
+.tile.unknown.down::after { content: '·'; color: rgba(90,80,62,.5); font-size: 22px; }
+
 .tile.down { color: transparent; }
 .tile.down::after {
   content: '?'; position: absolute; font-size: 19px; font-weight: 700;
@@ -214,6 +241,12 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .tile.pick:hover { transform: translateY(-5px); box-shadow: 0 4px 0 var(--tb-edge), 0 12px 20px rgba(74,57,33,.24); }
 .tile.w.pick:hover { box-shadow: 0 4px 0 var(--tw-edge), 0 12px 20px rgba(74,57,33,.24); }
 .tile.sel { outline: 3px solid var(--accent); outline-offset: 3px; }
+.tile.arranging {
+  outline: 3px solid var(--accent); outline-offset: 3px;
+  box-shadow: 0 4px 0 var(--tw-edge), 0 10px 18px rgba(180,87,31,.32);
+  animation: bob 1.5s ease-in-out infinite;
+}
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 .tile.drawn { box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 3px var(--accent), var(--shadow-lift); }
 .tile.w.drawn { box-shadow: 0 4px 0 var(--tw-edge), 0 0 0 3px var(--accent), var(--shadow-lift); }
 

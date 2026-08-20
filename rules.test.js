@@ -22,7 +22,14 @@ function allTiles(s) {
   if (s.pending) out.push(R.tileId(s.pending.tile));
   return out;
 }
-function begin(s){ s.players.forEach(function(p){ R.setupReady(s, p.id); }); return s; }
+// 각자 바닥에서 손패를 채우고 준비까지 마친다
+function begin(s){
+  s.players.forEach(function(p){
+    while (p.hand.length < s.handSize) R.draftPick(s, p.id, 0);
+    R.setupReady(s, p.id);
+  });
+  return s;
+}
 function firstHidden(p){ for(var i=0;i<p.hand.length;i++) if(!p.hand[i].faceUp) return i; return -1; }
 // 놓기 단계를 자동으로 넘긴다
 function settle(s){ if (s.phase === 'place') R.place(s, R.current(s).id, s.pendingSpotsFallback !== undefined ? s.pendingSpotsFallback : R.validPlacements(R.current(s).hand, s.pending.tile)[0]); }
@@ -39,7 +46,11 @@ ok('조커 라벨', R.tileLabel({color:'b',joker:true}) === '검정 조커');
 
 [[2,4],[3,3],[4,3]].forEach(function(c){
   var s = R.newGame(P(c[0]), 7);
-  ok(c[0]+'인 손패 '+c[1]+'장', s.players.every(function(p){return p.hand.length===c[1];}));
+  ok(c[0]+'인 시작 손패는 비어 있다', s.players.every(function(p){return p.hand.length===0;}));
+  ok(c[0]+'인 바닥에 26장 전부', s.pool.length === 26);
+  ok(c[0]+'인 목표 손패 '+c[1]+'장', s.handSize === c[1]);
+  begin(s);
+  ok(c[0]+'인 채운 뒤 '+c[1]+'장', s.players.every(function(p){return p.hand.length===c[1];}));
   ok(c[0]+'인 정렬됨(조커 제외)', s.players.every(function(p){return sorted(p.hand);}));
   ok(c[0]+'인 26장 보존', new Set(allTiles(s)).size === 26);
 });
@@ -50,8 +61,21 @@ section('시작 손패 정리');
   var st = R.newGame(P(3), 77);
   ok('시작은 setup', st.phase === 'setup');
   ok('아무도 준비 안 됨', Object.keys(st.ready).length === 0);
+  ok('손패는 비어 있고 바닥에 26장', st.players.every(function(p){return p.hand.length===0;}) && st.pool.length===26);
 
-  // 조커가 있든 없든 손패 장수는 같다 (조커 보유가 드러나면 안 된다)
+  ok('없는 자리 거부', R.draftPick(st, 'p0', 99).ok === false);
+  ok('다 고르기 전엔 준비 불가', R.setupReady(st, 'p0').ok === false);
+  var poolBefore = st.pool.length;
+  var want = st.pool[2];
+  ok('원하는 타일을 골라온다', R.draftPick(st, 'p0', 2).ok === true);
+  ok('그 타일이 손패에 들어옴', st.players[0].hand.some(function(x){ return R.tileId(x.tile)===R.tileId(want); }));
+  ok('바닥 1장 감소', st.pool.length === poolBefore - 1);
+  while (st.players[0].hand.length < st.handSize) R.draftPick(st, 'p0', 0);
+  ok('다 채우면 더 못 고름', R.draftPick(st, 'p0', 0).ok === false);
+  ok('고르는 동안 정렬 유지', sorted(st.players[0].hand));
+  st.players.slice(1).forEach(function(p){
+    while (p.hand.length < st.handSize) R.draftPick(st, p.id, 0);
+  });
   var lens = st.players.map(function(p){ return p.hand.length; });
   ok('손패 장수가 모두 같다', lens.every(function(x){ return x === lens[0]; }), JSON.stringify(lens));
 
@@ -82,6 +106,32 @@ section('시작 손패 정리');
   R.setupReady(st, st.players[2].id);
   ok('모두 준비하면 시작', st.phase === 'draw');
   ok('준비 끝나면 이동 거부', R.setupMove(st, who.id, 0, 1).ok === false);
+})();
+
+/* ---------------- 준비 전 색 은닉 ---------------- */
+section('준비 전 색 은닉');
+(function(){
+  var st = R.newGame(P(3), 88);
+  st.players.forEach(function(p){ while (p.hand.length < st.handSize) R.draftPick(st, p.id, 0); });
+
+  var v = R.viewFor(st, 'p0');
+  var 남 = v.players.filter(function(p){ return p.id !== 'p0'; });
+  ok('정리 중인 남의 패는 색도 모른다', 남.every(function(p){
+    return p.hand.every(function(x){ return x.tile.color === null; }); }));
+  ok('내 패는 숫자까지 보인다', v.players[0].hand.every(function(x){ return x.tile.n !== null || x.tile.joker === true; }));
+
+  R.setupReady(st, 'p1');
+  var v2 = R.viewFor(st, 'p0');
+  var p1 = v2.players.filter(function(p){ return p.id === 'p1'; })[0];
+  var p2 = v2.players.filter(function(p){ return p.id === 'p2'; })[0];
+  ok('준비를 마치면 색이 공개된다', p1.hand.every(function(x){ return x.tile.color === 'b' || x.tile.color === 'w'; }));
+  ok('아직 정리 중인 사람은 여전히 비밀', p2.hand.every(function(x){ return x.tile.color === null; }));
+  ok('공개돼도 숫자는 비밀', p1.hand.every(function(x){ return x.tile.n === null; }));
+
+  R.setupReady(st, 'p0'); R.setupReady(st, 'p2');
+  var v3 = R.viewFor(st, 'p0');
+  ok('모두 시작하면 전원 색 공개', v3.players.every(function(p){
+    return p.hand.every(function(x){ return x.tile.color === 'b' || x.tile.color === 'w'; }); }));
 })();
 
 /* ---------------- 놓을 자리 ---------------- */
@@ -263,8 +313,8 @@ ok('바닥은 색만', v1.pool.length === s6.pool.length && v1.pool.every(functi
 section('무작위 완주 500판');
 function randomAction(s, rng) {
   if (s.phase === 'setup') {
-    // 조커를 아무 자리로 옮겨보고 준비
     var p0 = s.players.filter(function(p){ return !s.ready[p.id]; })[0];
+    if (p0.hand.length < s.handSize) return R.draftPick(s, p0.id, Math.floor(rng() * s.pool.length));
     var jk = -1;
     p0.hand.forEach(function(x,i){ if (R.isJoker(x.tile) && jk < 0) jk = i; });
     if (jk >= 0 && rng() < 0.7) R.setupMove(s, p0.id, jk, Math.floor(rng() * p0.hand.length));

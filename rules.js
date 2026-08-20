@@ -86,20 +86,14 @@
     var pool = shuffle(createDeck(), rng);
     var size = handSize(players.length);
 
+    // 손패는 비어 있다. 시작 단계에서 각자 바닥에서 골라 온다.
     var ps = players.map(function (p) {
-      var hand = [];
-      for (var i = 0; i < size; i++) {
-        var t = pool.pop();
-        var spots = validPlacements(hand, t);
-        // 시작 손패의 조커는 무작위 자리에 둔다
-        var at = isJoker(t) ? spots[Math.floor(rng() * spots.length)] : spots[0];
-        hand.splice(at, 0, { tile: t, faceUp: false, missed: [] });
-      }
-      return { id: p.id, name: p.name, hand: hand, out: false };
+      return { id: p.id, name: p.name, hand: [], out: false };
     });
 
     return {
       players: ps, pool: pool, turn: 0,
+      handSize: size,
       ready: {},            // 시작 정리를 마친 사람
       phase: 'setup',       // setup | draw | guess | decide | place | penalty | over
       drawn: null,
@@ -153,6 +147,24 @@
     return null;
   }
 
+  // 시작 패를 바닥에서 한 장 골라 온다. 다 채울 때까지 반복한다.
+  function draftPick(s, pid, poolIndex) {
+    if (s.phase !== 'setup') return { ok: false, error: '지금은 고를 수 없습니다' };
+    if (s.ready[pid]) return { ok: false, error: '이미 준비를 마쳤습니다' };
+    var me = findPlayer(s, pid);
+    if (!me) return { ok: false, error: '없는 사람입니다' };
+    if (me.hand.length >= s.handSize) return { ok: false, error: '이미 다 골랐습니다' };
+    if (!(poolIndex >= 0 && poolIndex < s.pool.length)) return { ok: false, error: '없는 자리입니다' };
+
+    var t = s.pool.splice(poolIndex, 1)[0];
+    var spots = validPlacements(me.hand, t);
+    // 조커는 일단 아무 자리에 두고, 본인이 옮길 수 있게 한다
+    var at = isJoker(t) ? spots[Math.floor(Math.random() * spots.length)] : spots[0];
+    me.hand.splice(at, 0, { tile: t, faceUp: false, missed: [] });
+    s.lastEvent = { type: 'draft', by: pid };
+    return { ok: true };
+  }
+
   // 조커를 다른 자리로 옮긴다. to 는 그 조커를 뺀 상태 기준의 자리.
   function setupMove(s, pid, from, to) {
     if (s.phase !== 'setup') return { ok: false, error: '지금은 옮길 수 없습니다' };
@@ -174,6 +186,9 @@
     if (s.phase !== 'setup') return { ok: false, error: '지금은 준비할 수 없습니다' };
     var me = findPlayer(s, pid);
     if (!me) return { ok: false, error: '없는 사람입니다' };
+    if (me.hand.length < s.handSize) {
+      return { ok: false, error: '아직 ' + (s.handSize - me.hand.length) + '장 더 골라야 합니다' };
+    }
     s.ready[pid] = true;
 
     var waiting = s.players.filter(function (p) { return !p.out && !s.ready[p.id]; });
@@ -294,9 +309,11 @@
   }
 
   /* ---------- 시야 자르기 ---------- */
-  function maskTile(t, reveal) {
-    return reveal ? { color: t.color, n: t.n, joker: !!t.joker }
-                  : { color: t.color, n: null, joker: null };   // joker:null = 조커인지 모름
+  // level 2 = 숫자까지, 1 = 색만, 0 = 아무것도 모름 (시작 정리 중인 남의 패)
+  function maskTile(t, level) {
+    if (level >= 2) return { color: t.color, n: t.n, joker: !!t.joker };
+    if (level === 1) return { color: t.color, n: null, joker: null };
+    return { color: null, n: null, joker: null };
   }
 
   function viewFor(s, pid) {
@@ -312,6 +329,7 @@
         return out;
       })(),
       poolCount: s.pool.length,
+      handSize: s.handSize,
       pool: s.pool.map(function (t) { return { color: t.color }; }),   // 색만
       log: s.log.slice(-12),
       lastEvent: s.lastEvent,
@@ -324,7 +342,11 @@
         return {
           id: p.id, name: p.name, out: p.out,
           hand: p.hand.map(function (slot) {
-            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, slot.faceUp || p.id === pid),
+            var level;
+            if (p.id === pid || slot.faceUp) level = 2;
+            else if (s.phase === 'setup' && !s.ready[p.id]) level = 0;   // 정리 중에는 색도 비밀
+            else level = 1;
+            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, level),
                      missed: (slot.missed || []).slice() };
           })
         };
@@ -337,7 +359,7 @@
     var known = {};
     view.players.forEach(function (p) {
       p.hand.forEach(function (s) {
-        if (s.tile && (s.tile.n !== null || s.tile.joker === true)) known[tileId(s.tile)] = true;
+        if (s.tile && s.tile.color && (s.tile.n !== null || s.tile.joker === true)) known[tileId(s.tile)] = true;
       });
     });
     if (view.drawn) known[tileId(view.drawn)] = true;
@@ -351,7 +373,7 @@
     isJoker: isJoker, tileKey: tileKey, tileId: tileId, tileLabel: tileLabel, sameTile: sameTile,
     validPlacements: validPlacements, hiddenCount: hiddenCount,
     alivePlayers: alivePlayers, current: current,
-    newGame: newGame, setupMove: setupMove, setupReady: setupReady,
+    newGame: newGame, draftPick: draftPick, setupMove: setupMove, setupReady: setupReady,
     draw: draw, guess: guess, decide: decide, place: place, penalty: penalty,
     viewFor: viewFor, unseenTiles: unseenTiles
   };
