@@ -93,7 +93,7 @@
         var spots = validPlacements(hand, t);
         // 시작 손패의 조커는 무작위 자리에 둔다
         var at = isJoker(t) ? spots[Math.floor(rng() * spots.length)] : spots[0];
-        hand.splice(at, 0, { tile: t, faceUp: false });
+        hand.splice(at, 0, { tile: t, faceUp: false, missed: [] });
       }
       return { id: p.id, name: p.name, hand: hand, out: false };
     });
@@ -199,6 +199,9 @@
       return { ok: true, hit: true };
     }
 
+    if (!slot.missed) slot.missed = [];
+    if (slot.missed.indexOf(n) < 0) slot.missed.push(n);   // n === null 이면 조커를 불렀다는 뜻
+
     if (s.drawn) beginPlace(s, s.drawn, true);
     else s.phase = 'penalty';
     return { ok: true, hit: false };
@@ -223,7 +226,7 @@
     var spots = validPlacements(me.hand, s.pending.tile);
     if (spots.indexOf(index) < 0) return { ok: false, error: '거기에는 놓을 수 없습니다' };
 
-    me.hand.splice(index, 0, { tile: s.pending.tile, faceUp: s.pending.faceUp });
+    me.hand.splice(index, 0, { tile: s.pending.tile, faceUp: s.pending.faceUp, missed: [] });
     s.lastEvent = { type: 'placed', by: pid, index: index, faceUp: s.pending.faceUp,
                     handLen: me.hand.length };
     say(s, me.name + (s.pending.faceUp
@@ -275,7 +278,8 @@
         return {
           id: p.id, name: p.name, out: p.out,
           hand: p.hand.map(function (slot) {
-            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, slot.faceUp || p.id === pid) };
+            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, slot.faceUp || p.id === pid),
+                     missed: (slot.missed || []).slice() };
           })
         };
       })

@@ -116,6 +116,32 @@
     return e;
   }
 
+  function valLabel(n) { return n === null ? '조커' : String(n); }
+
+  // 타일 한 칸 = 타일 + 여태 빗나간 시도들 + 방금 부른 값
+  function tileCell(v, p, slot, i, opts) {
+    var wrap = el('div', 'tilewrap');
+    var e = tileEl(slot.tile, slot.faceUp, opts);
+    wrap.appendChild(e);
+
+    var ev = App.animateEv;
+    if (ev && ev.type === 'guess' && ev.targetId === p.id && ev.index === i) {
+      e.classList.add(ev.hit ? 'smash' : 'shake');
+      wrap.appendChild(el('div', 'callout ' + (ev.hit ? 'hit' : 'miss'), valLabel(ev.guessed.n)));
+    } else if (ev && ev.type === 'placed' && ev.by === p.id && ev.index === i) {
+      e.classList.add('inserted');
+    }
+
+    // 이 칸에 시도됐다가 빗나간 값들 — 모두가 아는 정보다
+    var miss = slot.missed || [];
+    if (miss.length && !slot.faceUp) {
+      var row = el('div', 'missed');
+      miss.forEach(function (n) { row.appendChild(el('span', null, valLabel(n))); });
+      wrap.appendChild(row);
+    }
+    return { wrap: wrap, tile: e };
+  }
+
   function dirBar() {
     var d = el('div', 'dir');
     d.appendChild(el('span', null, '작음'));
@@ -152,7 +178,8 @@
 
     var hand = el('div', 'hand');
     p.hand.forEach(function (slot, i) {
-      var e = tileEl(slot.tile, slot.faceUp, { big: big, own: isMe });
+      var cell = tileCell(v, p, slot, i, { big: big, own: isMe });
+      var e = cell.tile;
       var canGuess = !isMe && !p.out && !slot.faceUp && v.phase === 'guess' && isMyTurn(v);
       var canPen = isMe && !slot.faceUp && v.phase === 'penalty' && isMyTurn(v);
       if (canGuess) {
@@ -163,14 +190,7 @@
         e.classList.add('pick');
         e.onclick = function () { act('penalty', [i]); };
       }
-      // 방금 벌어진 일만 한 번 연출한다
-      var ev = App.animateEv;
-      if (ev && ev.type === 'guess' && ev.hit && ev.targetId === p.id && ev.index === i) {
-        e.classList.add('smash');
-      } else if (ev && ev.type === 'placed' && ev.by === p.id && ev.index === i) {
-        e.classList.add('inserted');       // 패 사이가 벌어지며 끼어든다
-      }
-      hand.appendChild(e);
+      hand.appendChild(cell.wrap);
     });
     box.appendChild(hand);
     box.appendChild(dirBar());
@@ -205,12 +225,21 @@
     var wrap = el('div', 'floor');
     var canPick = v.phase === 'draw' && isMyTurn(v) && v.poolCount > 0;
     if (canPick) wrap.classList.add('can');
-    wrap.appendChild(el('h3', null, '바닥 ' + v.poolCount + '장' + (canPick ? ' — 한 장 고르세요' : '')));
+    var nb = 0; v.pool.forEach(function (t) { if (t.color === 'b') nb++; });
+    wrap.appendChild(el('h3', null, '바닥 ' + v.poolCount + '장 (검정 ' + nb + ' · 흰색 ' + (v.poolCount - nb) + ')' +
+                                    (canPick ? ' — 한 장 고르세요' : '')));
 
+    // 색끼리 묶어 보여준다. 어차피 같은 색끼리는 구별할 수 없으니 정보가 새지 않는다.
+    var order = v.pool.map(function (t, i) { return { t: t, i: i }; });
+    order.sort(function (a, b) {
+      if (a.t.color === b.t.color) return a.i - b.i;
+      return a.t.color === 'b' ? -1 : 1;
+    });
     var pile = el('div', 'pile');
-    v.pool.forEach(function (t, i) {
-      var e = tileEl({ color: t.color, n: null, joker: null }, false, {});
-      if (canPick) e.onclick = function () { act('draw', [i]); };
+    order.forEach(function (o, k) {
+      var e = tileEl({ color: o.t.color, n: null, joker: null }, false, {});
+      if (k > 0 && order[k - 1].t.color !== o.t.color) e.classList.add('gapbefore');
+      if (canPick) e.onclick = function () { act('draw', [o.i]); };
       pile.appendChild(e);
     });
     wrap.appendChild(pile);
