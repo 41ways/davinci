@@ -8,7 +8,8 @@
   var App = {
     mode: null, net: null, state: null, view: null, me: null,
     seats: [], sel: null, setupSelColor: null, started: false, botTimer: null, skill: 0.75,
-    shownEvent: null, animateEv: null
+    shownEvent: null, animateEv: null,
+    heldView: null, holdUntil: 0, holdTimer: null, announceTimer: null
   };
 
   function show(which) {
@@ -37,20 +38,77 @@
     pushViews();
   }
 
+  var PREDICT_MS = 1000;     // 예측만 보여주는 시간
+  var VERDICT_MS = 1500;     // 결과를 띄워두는 시간
+
   function pushViews() {
     var s = App.state;
-    App.view = R.viewFor(s, App.me);
+    var nv = R.viewFor(s, App.me);
     if (App.mode === 'host' && App.net) {
       App.net.broadcast(function (pid) { return { t: 'view', view: R.viewFor(s, pid) }; });
     }
+    applyView(nv);
+  }
+
+  // 추측이 들어오면 '예측'을 먼저 크게 띄우고 판은 이전 상태로 잠시 멈춘다.
+  // 1초 뒤에 실제 결과를 반영한다. 그래야 결과가 미리 새어나가지 않는다.
+  function applyView(nv) {
+    var ev = nv.lastEvent, key = eventKey(ev);
+    var fresh = !!key && key !== App.shownEvent;
+
+    if (fresh && ev.type === 'guess' && App.view) {
+      App.shownEvent = key;
+      App.heldView = nv;
+      App.holdUntil = Date.now() + PREDICT_MS;
+      announce(ev, false);
+      App.animateEv = null;
+      render();                                  // 이전 판을 그대로 둔다
+      clearTimeout(App.holdTimer);
+      App.holdTimer = setTimeout(function () {
+        App.view = App.heldView; App.heldView = null; App.holdUntil = 0;
+        App.animateEv = ev;                      // 부서짐 / 흔들림 연출
+        announce(ev, true);
+        render();
+        scheduleBot();
+      }, PREDICT_MS);
+      scheduleBot();
+      return;
+    }
+
+    App.view = nv;
+    App.shownEvent = fresh ? key : App.shownEvent;
+    App.animateEv = fresh ? ev : null;
     render();
     scheduleBot();
+  }
+
+  function announce(ev, withResult) {
+    var box = $('announce');
+    box.innerHTML = '';
+    box.className = 'announce on' + (withResult ? (ev.hit ? ' hit' : ' miss') : '');
+    document.body.classList.add('announcing');   // 판을 아래로 밀어 가리지 않게 한다
+
+    box.appendChild(el('span', 'a-who', ev.byName + ' → ' + ev.targetName + ' ' + (ev.index + 1) + '번째'));
+    var t = el('div', 'tile ' + ev.guessed.color + (ev.guessed.joker ? ' joker' : ''));
+    t.textContent = ev.guessed.joker ? '조커' : ev.guessed.n;
+    box.appendChild(t);
+    box.appendChild(el('span', 'a-label', withResult ? (ev.hit ? '적중' : '빗나감') : '예측'));
+
+    clearTimeout(App.announceTimer);
+    if (withResult) {
+      App.announceTimer = setTimeout(function () {
+        box.className = 'announce';
+        document.body.classList.remove('announcing');
+      }, VERDICT_MS);
+    }
   }
 
   function scheduleBot() {
     clearTimeout(App.botTimer);
     var s = App.state;
     if (!s || s.phase === 'over') return;
+    var hold = App.holdUntil - Date.now();
+    if (hold > 0) { App.botTimer = setTimeout(scheduleBot, hold + 60); return; }
     if (s.phase === 'setup') {
       var waiting = App.seats.filter(function (st) { return st.bot && !s.ready[st.id]; });
       if (waiting.length) App.botTimer = setTimeout(botSetupStep, 420);
@@ -146,8 +204,6 @@
     return e;
   }
 
-  function valLabel(n) { return n === null ? '조커' : String(n); }
-
   // 타일 한 칸 = 타일 + 여태 빗나간 시도들 + 방금 부른 값
   function tileCell(v, p, slot, i, opts) {
     var wrap = el('div', 'tilewrap');
@@ -156,19 +212,11 @@
 
     var ev = App.animateEv;
     if (ev && ev.type === 'guess' && ev.targetId === p.id && ev.index === i) {
-      e.classList.add(ev.hit ? 'smash' : 'shake');
-      wrap.appendChild(el('div', 'callout ' + (ev.hit ? 'hit' : 'miss'), valLabel(ev.guessed.n)));
+      e.classList.add(ev.hit ? 'smash' : 'shake');   // 값은 큰 알림으로 따로 보여준다
     } else if (ev && ev.type === 'placed' && ev.by === p.id && ev.index === i) {
       e.classList.add('inserted');
     }
 
-    // 이 칸에 시도됐다가 빗나간 값들 — 모두가 아는 정보다
-    var miss = slot.missed || [];
-    if (miss.length && !slot.faceUp) {
-      var row = el('div', 'missed');
-      miss.forEach(function (n) { row.appendChild(el('span', null, valLabel(n))); });
-      wrap.appendChild(row);
-    }
     return { wrap: wrap, tile: e };
   }
 
@@ -388,12 +436,7 @@
     var v = App.view;
     if (!v) return;
 
-    // 연출은 새로 벌어진 사건에 대해서만 한 번
-    var ev = v.lastEvent, key = eventKey(ev);
-    var fresh = !!key && key !== App.shownEvent;
-    if (fresh) App.shownEvent = key;
-    App.animateEv = fresh ? ev : null;
-    if (fresh && ev.type === 'guess' && ev.hit) flashHit(ev);
+    if (App.animateEv && App.animateEv.type === 'guess' && App.animateEv.hit) flashHit(App.animateEv);
 
     var cur = v.players[v.turn];
     if (v.phase === 'setup') {
@@ -438,6 +481,7 @@
     (v.log || []).forEach(function (line) { log.appendChild(el('div', null, line)); });
 
     if (v.phase === 'over') showOver(v);
+    App.animateEv = null;
   }
 
   function indexOfMe(v) {
@@ -679,9 +723,9 @@
     App.net.on.data = function (_, msg) {
       if (msg.t === 'lobby') renderSeats(msg.seats, false);
       else if (msg.t === 'view') {
-        App.view = msg.view; App.me = msg.view.me;
+        App.me = msg.view.me;
         if ($('game').classList.contains('hidden')) show('game');
-        render();
+        applyView(msg.view);
       } else if (msg.t === 'err') toast(msg.msg);
     };
     App.net.join(code, myName());

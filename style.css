@@ -126,8 +126,12 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 #panel, .log { max-width: 620px; margin: 0 auto; padding: 0 14px; }
 
 /* ---------- 네 방향 자리 ---------- */
+/* 알림이 뜨는 동안 판을 아래로 밀어, 가려지는 패가 없게 한다 */
+body.announcing .table { padding-top: 96px; }
+
 .table {
   max-width: 900px; margin: 0 auto; padding: 12px 14px 0;
+  transition: padding-top .18s ease;
   display: grid; gap: 10px;
   grid-template-columns: minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);
   grid-template-areas: "top top top" "left center right" "me me me";
@@ -261,31 +265,6 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .tile.drawn { box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 3px var(--accent), var(--shadow-lift); }
 .tile.w.drawn { box-shadow: 0 4px 0 var(--tw-edge), 0 0 0 3px var(--accent), var(--shadow-lift); }
 
-/* 빗나간 시도 기록 */
-.missed { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; max-width: 64px; }
-.missed span {
-  font-size: 9.5px; font-weight: 700; line-height: 1.6; padding: 0 4px; border-radius: 4px;
-  background: var(--miss-bg); color: var(--miss-fg); font-variant-numeric: tabular-nums;
-}
-
-/* 방금 부른 값 */
-.callout {
-  position: absolute; left: 50%; top: -24px; transform: translateX(-50%);
-  font-size: 11.5px; font-weight: 800; padding: 4px 9px; border-radius: 12px;
-  white-space: nowrap; pointer-events: none; z-index: 6; color: #fff;
-  box-shadow: 0 3px 8px rgba(74,57,33,.27);
-  animation: callpop 1.5s ease-out forwards;
-}
-.callout.miss { background: var(--miss); }
-.callout.hit  { background: var(--hit); }
-@keyframes callpop {
-  0%   { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.7); }
-  14%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.12); }
-  24%  { transform: translateX(-50%) translateY(0) scale(1); }
-  78%  { opacity: 1; }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-}
-
 /* 작은 수 -> 큰 수 */
 .dir { display: flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 9.5px; color: var(--faint); letter-spacing: .08em; }
 .dir .line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), #a89a80); }
@@ -407,4 +386,36 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
   position: fixed; right: 9px; bottom: 7px; z-index: 1;
   font-size: 9px; letter-spacing: .1em; color: var(--faint);
   opacity: .4; pointer-events: none; user-select: none;
+}
+
+/* ---------- 예측 알림 ----------
+   그 순간에만 크게 보이고 사라진다. 기록으로 남지 않으니 기억해야 한다.
+   상단 가로 띠라서 상대 패를 가리지 않는다. */
+.announce {
+  position: fixed; left: 50%; top: 52px; transform: translateX(-50%) translateY(-12px);
+  z-index: 24; pointer-events: none;
+  display: flex; align-items: center; gap: 15px;
+  padding: 8px 12px 8px 20px; border-radius: 999px; max-width: 94vw;
+  background: #ffffff; border: 2px solid var(--line);
+  box-shadow: 0 10px 30px rgba(74,57,33,.30);
+  opacity: 0; transition: opacity .16s ease, transform .16s ease;
+}
+.announce.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.announce.hit { border-color: var(--hit); box-shadow: 0 10px 30px rgba(47,125,58,.32); }
+.announce.miss { border-color: var(--miss); box-shadow: 0 10px 30px rgba(184,69,47,.32); }
+
+.a-who { font-size: 14px; font-weight: 700; color: var(--dim); white-space: nowrap; }
+.announce .tile { --tilew: 36px; --tileh: 50px; font-size: 18px; }
+.announce .tile.joker { font-size: 12px; }
+.a-label {
+  font-size: 25px; font-weight: 900; letter-spacing: .04em; color: var(--ink);
+  white-space: nowrap; padding-right: 8px;
+}
+.announce.hit .a-label { color: var(--hit); }
+.announce.miss .a-label { color: var(--miss); }
+
+@media (max-width: 560px) {
+  .a-who { font-size: 12px; white-space: normal; }
+  .a-label { font-size: 20px; }
+  .announce { gap: 10px; padding: 8px 10px 8px 14px; }
 }

@@ -160,7 +160,7 @@
     var spots = validPlacements(me.hand, t);
     // 조커는 일단 아무 자리에 두고, 본인이 옮길 수 있게 한다
     var at = isJoker(t) ? spots[Math.floor(Math.random() * spots.length)] : spots[0];
-    me.hand.splice(at, 0, { tile: t, faceUp: false, missed: [] });
+    me.hand.splice(at, 0, { tile: t, faceUp: false });
     s.lastEvent = { type: 'draft', by: pid };
     return { ok: true };
   }
@@ -241,20 +241,15 @@
 
     var hit = sameTile(slot.tile, color, n);
     var guessed = { color: color, n: n, joker: n === null };
-    s.lastEvent = { type: 'guess', by: pid, targetId: targetId, index: index,
+    s.lastEvent = { type: 'guess', by: pid, byName: current(s).name,
+                    targetId: targetId, targetName: target.name, index: index,
                     guessed: guessed, hit: hit, actual: hit ? slot.tile : null };
-    say(s, current(s).name + ' → ' + target.name + ' ' + (index + 1) + '번째: ' +
-        tileLabel(guessed) + (hit ? ' 적중' : ' 빗나감'));
-
     if (hit) {
       slot.faceUp = true;
       if (checkOut(s, target) && checkWin(s)) return { ok: true, hit: true };
       s.phase = 'decide';
       return { ok: true, hit: true };
     }
-
-    if (!slot.missed) slot.missed = [];
-    if (slot.missed.indexOf(n) < 0) slot.missed.push(n);   // n === null 이면 조커를 불렀다는 뜻
 
     if (s.drawn) beginPlace(s, s.drawn, true);
     else s.phase = 'penalty';
@@ -280,7 +275,7 @@
     var spots = validPlacements(me.hand, s.pending.tile);
     if (spots.indexOf(index) < 0) return { ok: false, error: '거기에는 놓을 수 없습니다' };
 
-    me.hand.splice(index, 0, { tile: s.pending.tile, faceUp: s.pending.faceUp, missed: [] });
+    me.hand.splice(index, 0, { tile: s.pending.tile, faceUp: s.pending.faceUp });
     s.lastEvent = { type: 'placed', by: pid, index: index, faceUp: s.pending.faceUp,
                     handLen: me.hand.length };
     say(s, me.name + (s.pending.faceUp
@@ -355,8 +350,7 @@
             if (p.id === pid || slot.faceUp) level = 2;
             else if (arranging) level = 0;   // 자리별 색은 준비 전까지 비밀
             else level = 1;
-            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, level),
-                     missed: (slot.missed || []).slice() };
+            return { faceUp: slot.faceUp, tile: maskTile(slot.tile, level) };
           })
         };
       })

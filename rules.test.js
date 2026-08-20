@@ -84,7 +84,7 @@ section('시작 손패 정리');
   st.players.forEach(function(p, pi){
     p.hand.forEach(function(x, i){ if (R.isJoker(x.tile) && who === null) { who = p; at = i; } });
   });
-  if (!who) { who = st.players[0]; who.hand[1] = { tile: J('b'), faceUp:false, missed:[] }; at = 1; }
+  if (!who) { who = st.players[0]; who.hand[1] = { tile: J('b'), faceUp:false }; at = 1; }
 
   var before = who.hand.map(function(x){ return R.tileId(x.tile); });
   ok('조커를 맨 앞으로 옮김', R.setupMove(st, who.id, at, 0).ok === true);
@@ -207,32 +207,6 @@ ok('phase=decide', s.phase === 'decide');
   ok('조커를 조커로 부르면 적중', R.guess(st,'p0','p1',0,'w',null).hit === true);
   st.turn = 0; st.phase = 'guess'; st.drawn = b(9);
   ok('일반 타일을 조커로 부르면 빗나감', R.guess(st,'p0','p1',1,'b',null).hit === false);
-})();
-
-/* ---------------- 빗나간 시도 기록 ---------------- */
-section('빗나간 시도 기록');
-(function(){
-  var st = begin(R.newGame(P(2), 33));
-  st.players[1].hand = [{tile:b(3),faceUp:false,missed:[]},{tile:w(8),faceUp:false,missed:[]}];
-  st.pool = [b(0), b(1), b(2)];
-  function 시도(n){ st.turn=0; st.phase='draw'; st.drawn=null; st.pending=null;
-    R.draw(st,'p0',0); R.guess(st,'p0','p1',0,'b',n);
-    if (st.phase === 'place') R.place(st,'p0', R.validPlacements(st.players[0].hand, st.pending.tile)[0]); }
-  시도(7);
-  ok('빗나가면 그 칸에 기록', JSON.stringify(st.players[1].hand[0].missed) === '[7]');
-  시도(9);
-  ok('여러 번 쌓인다', JSON.stringify(st.players[1].hand[0].missed) === '[7,9]');
-  시도(7);
-  ok('같은 값은 중복 안 됨', JSON.stringify(st.players[1].hand[0].missed) === '[7,9]');
-  시도(null);
-  ok('조커 시도도 기록(null)', JSON.stringify(st.players[1].hand[0].missed) === '[7,9,null]');
-  ok('다른 칸은 영향 없음', JSON.stringify(st.players[1].hand[1].missed) === '[]');
-  ok('적중한 칸엔 기록되지 않음', (function(){
-      st.turn=0; st.phase='draw'; st.drawn=null; st.pending=null;
-      R.draw(st,'p0',0); R.guess(st,'p0','p1',1,'w',8);
-      return st.players[1].hand[1].faceUp && st.players[1].hand[1].missed.length === 0;
-    })());
-  ok('시야에도 실려 나간다', JSON.stringify(R.viewFor(st,'p0').players[1].hand[0].missed) === '[7,9,null]');
 })();
 
 /* ---------------- 놓기 단계 ---------------- */
