@@ -86,7 +86,6 @@
     var box = $('announce');
     box.innerHTML = '';
     box.className = 'announce on' + (withResult ? (ev.hit ? ' hit' : ' miss') : '');
-    document.body.classList.add('announcing');   // 판을 아래로 밀어 가리지 않게 한다
 
     box.appendChild(el('span', 'a-who', ev.byName + ' → ' + ev.targetName + ' ' + (ev.index + 1) + '번째'));
     var t = el('div', 'tile ' + ev.guessed.color + (ev.guessed.joker ? ' joker' : ''));
@@ -96,10 +95,7 @@
 
     clearTimeout(App.announceTimer);
     if (withResult) {
-      App.announceTimer = setTimeout(function () {
-        box.className = 'announce';
-        document.body.classList.remove('announcing');
-      }, VERDICT_MS);
+      App.announceTimer = setTimeout(function () { box.className = 'announce'; }, VERDICT_MS);
     }
   }
 
@@ -436,7 +432,7 @@
     var v = App.view;
     if (!v) return;
 
-    if (App.animateEv && App.animateEv.type === 'guess' && App.animateEv.hit) flashHit(App.animateEv);
+    if (App.animateEv && App.animateEv.type === 'guess') flashVerdict(App.animateEv);
 
     var cur = v.players[v.turn];
     if (v.phase === 'setup') {
@@ -489,10 +485,10 @@
     return 0;
   }
 
-  function flashHit(ev) {
-    var f = el('div', 'hitflag', '적중');
+  function flashVerdict(ev) {
+    var f = el('div', 'hitflag ' + (ev.hit ? 'hit' : 'miss'), ev.hit ? '적중' : '빗나감');
     document.body.appendChild(f);
-    setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 950);
+    setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 1200);
   }
 
   function renderPanel(v) {
