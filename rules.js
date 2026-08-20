@@ -100,7 +100,8 @@
 
     return {
       players: ps, pool: pool, turn: 0,
-      phase: 'draw',        // draw | guess | decide | place | penalty | over
+      ready: {},            // 시작 정리를 마친 사람
+      phase: 'setup',       // setup | draw | guess | decide | place | penalty | over
       drawn: null,
       pending: null,        // {tile, faceUp} 놓을 자리를 고르는 중
       winner: null, lastEvent: null, log: []
@@ -144,6 +145,44 @@
     s.drawn = null;
     s.phase = 'place';
     return true;
+  }
+
+  /* ---------- 시작 정리 ---------- */
+  function findPlayer(s, pid) {
+    for (var i = 0; i < s.players.length; i++) if (s.players[i].id === pid) return s.players[i];
+    return null;
+  }
+
+  // 조커를 다른 자리로 옮긴다. to 는 그 조커를 뺀 상태 기준의 자리.
+  function setupMove(s, pid, from, to) {
+    if (s.phase !== 'setup') return { ok: false, error: '지금은 옮길 수 없습니다' };
+    if (s.ready[pid]) return { ok: false, error: '이미 준비를 마쳤습니다' };
+    var me = findPlayer(s, pid);
+    if (!me) return { ok: false, error: '없는 사람입니다' };
+    var slot = me.hand[from];
+    if (!slot) return { ok: false, error: '없는 자리입니다' };
+    if (!isJoker(slot.tile)) return { ok: false, error: '조커만 옮길 수 있습니다' };
+
+    me.hand.splice(from, 1);
+    var at = Math.max(0, Math.min(to, me.hand.length));
+    me.hand.splice(at, 0, slot);
+    s.lastEvent = { type: 'setupMove', by: pid };
+    return { ok: true };
+  }
+
+  function setupReady(s, pid) {
+    if (s.phase !== 'setup') return { ok: false, error: '지금은 준비할 수 없습니다' };
+    var me = findPlayer(s, pid);
+    if (!me) return { ok: false, error: '없는 사람입니다' };
+    s.ready[pid] = true;
+
+    var waiting = s.players.filter(function (p) { return !p.out && !s.ready[p.id]; });
+    if (!waiting.length) {
+      s.phase = 'draw';
+      s.lastEvent = { type: 'begin' };
+      say(s, '모두 준비 완료 — 시작합니다');
+    }
+    return { ok: true };
   }
 
   /* ---------- 액션 ---------- */
@@ -265,6 +304,13 @@
     var isCur = s.phase !== 'over' && cur && cur.id === pid;
     return {
       phase: s.phase, turn: s.turn, winner: s.winner, me: pid,
+      ready: JSON.parse(JSON.stringify(s.ready || {})),
+      myJokers: (function () {
+        var me = null, out = [];
+        for (var i = 0; i < s.players.length; i++) if (s.players[i].id === pid) me = s.players[i];
+        if (me) me.hand.forEach(function (x, i) { if (isJoker(x.tile)) out.push(i); });
+        return out;
+      })(),
       poolCount: s.pool.length,
       pool: s.pool.map(function (t) { return { color: t.color }; }),   // 색만
       log: s.log.slice(-12),
@@ -305,7 +351,8 @@
     isJoker: isJoker, tileKey: tileKey, tileId: tileId, tileLabel: tileLabel, sameTile: sameTile,
     validPlacements: validPlacements, hiddenCount: hiddenCount,
     alivePlayers: alivePlayers, current: current,
-    newGame: newGame, draw: draw, guess: guess, decide: decide, place: place, penalty: penalty,
+    newGame: newGame, setupMove: setupMove, setupReady: setupReady,
+    draw: draw, guess: guess, decide: decide, place: place, penalty: penalty,
     viewFor: viewFor, unseenTiles: unseenTiles
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

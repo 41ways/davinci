@@ -7,7 +7,7 @@
 
   var App = {
     mode: null, net: null, state: null, view: null, me: null,
-    seats: [], sel: null, started: false, botTimer: null, skill: 0.75,
+    seats: [], sel: null, setupSel: null, started: false, botTimer: null, skill: 0.75,
     shownEvent: null, animateEv: null
   };
 
@@ -32,7 +32,7 @@
     App.started = true;
     App.state = R.newGame(App.seats.map(function (s) { return { id: s.id, name: s.name }; }),
                           Math.floor(Math.random() * 1e9));
-    App.sel = null; App.shownEvent = null;
+    App.sel = null; App.setupSel = null; App.shownEvent = null;
     show('game');
     pushViews();
   }
@@ -51,8 +51,29 @@
     clearTimeout(App.botTimer);
     var s = App.state;
     if (!s || s.phase === 'over') return;
+    if (s.phase === 'setup') {
+      var waiting = App.seats.filter(function (st) { return st.bot && !s.ready[st.id]; });
+      if (waiting.length) App.botTimer = setTimeout(botSetupStep, 550);
+      return;
+    }
     var seat = seatOf(R.current(s).id);
     if (seat && seat.bot) App.botTimer = setTimeout(botStep, 900);
+  }
+
+  function botSetupStep() {
+    var s = App.state;
+    if (!s || s.phase !== 'setup') return;
+    var seat = App.seats.filter(function (st) { return st.bot && !s.ready[st.id]; })[0];
+    if (!seat) return;
+    var p = null;
+    s.players.forEach(function (x) { if (x.id === seat.id) p = x; });
+    if (p) {
+      var jk = -1;
+      p.hand.forEach(function (x, i) { if (R.isJoker(x.tile) && jk < 0) jk = i; });
+      if (jk >= 0) R.setupMove(s, seat.id, jk, Math.floor(Math.random() * p.hand.length));
+    }
+    R.setupReady(s, seat.id);
+    pushViews();
   }
 
   function botStep() {
@@ -79,7 +100,9 @@
   function doAction(pid, action, args) {
     var s = App.state, r = null;
     if (!s) return;
-    if (action === 'draw') r = R.draw(s, pid, args[0]);
+    if (action === 'setupMove') r = R.setupMove(s, pid, args[0], args[1]);
+    else if (action === 'setupReady') r = R.setupReady(s, pid);
+    else if (action === 'draw') r = R.draw(s, pid, args[0]);
     else if (action === 'guess') r = R.guess(s, pid, args[0], args[1], args[2], args[3]);
     else if (action === 'decide') r = R.decide(s, pid, args[0]);
     else if (action === 'place') r = R.place(s, pid, args[0]);
@@ -167,7 +190,17 @@
     if (isTurn && v.hasDrawn && !isMe) {
       head.appendChild(el('span', 'meta', '· ' + (v.drawnColor === 'b' ? '검정' : '흰색') + ' 집음'));
     }
+    if (v.phase === 'setup' && !p.out) {
+      head.appendChild(el('span', 'meta', v.ready[p.id] ? '· 준비 완료' : '· 정리 중'));
+    }
     box.appendChild(head);
+
+    // 시작 정리 중: 내 조커를 어디든 옮길 수 있다
+    if (isMe && v.phase === 'setup' && !v.ready[v.me] && setupSelIndex(v) !== null) {
+      box.appendChild(setupRow(v, p, big));
+      box.appendChild(dirBar());
+      return box;
+    }
 
     // 놓을 자리를 고르는 중이면 내 손패 사이에 틈을 보여준다
     if (isMe && v.phase === 'place' && v.pending && isMyTurn(v)) {
@@ -199,6 +232,39 @@
 
   // 자리는 언제나 전부 보여준다. 숫자 패도 고르는 것처럼 보여야
   // "자리를 고른다 = 조커다" 가 드러나지 않는다.
+  // 지금 자리를 정하고 있는 조커의 손패 위치
+  function setupSelIndex(v) {
+    var js = v.myJokers || [];
+    if (!js.length) return null;
+    if (App.setupSel !== null && js.indexOf(App.setupSel) >= 0) return App.setupSel;
+    return js[0];
+  }
+
+  // 고른 조커를 빼놓고 나머지를 늘어놓은 뒤, 틈마다 자리를 만든다
+  function setupRow(v, p, big) {
+    var sel = setupSelIndex(v);
+    var row = el('div', 'slots');
+    var rest = [];
+    p.hand.forEach(function (slot, i) { if (i !== sel) rest.push({ slot: slot, i: i }); });
+
+    function slotBtn(to) {
+      var e = el('div', 'slot' + (big ? ' big' : '') + ' ok');
+      e.onclick = function () { act('setupMove', [sel, to]); };
+      return e;
+    }
+    row.appendChild(slotBtn(0));
+    rest.forEach(function (o, k) {
+      var t = tileEl(o.slot.tile, o.slot.faceUp, { big: big, own: true });
+      if (R.isJoker(o.slot.tile)) {
+        t.classList.add('pick');
+        t.onclick = function () { App.setupSel = o.i; render(); };
+      }
+      row.appendChild(t);
+      row.appendChild(slotBtn(k + 1));
+    });
+    return row;
+  }
+
   function placeRow(v, p, big) {
     var row = el('div', 'slots');
     var spots = v.pendingSpots || [];
@@ -222,6 +288,26 @@
   }
 
   function floorBox(v) {
+    // 시작 정리 중에는 바닥 대신 정리 중인 조커를 보여준다
+    if (v.phase === 'setup') {
+      var w0 = el('div', 'floor');
+      var sel = setupSelIndex(v);
+      var mine = null;
+      v.players.forEach(function (p) { if (p.id === v.me) mine = p; });
+      if (sel !== null && mine && !v.ready[v.me]) {
+        w0.appendChild(el('h3', null, '이 조커의 자리를 고르세요'));
+        var b0 = el('div', 'drawn-box');
+        var je = tileEl(mine.hand[sel].tile, false, { big: true, own: true });
+        je.classList.add('drawn');
+        b0.appendChild(je);
+        if ((v.myJokers || []).length > 1) b0.appendChild(el('span', null, '조커가 둘입니다 — 다른 조커를 눌러 바꿀 수 있어요'));
+        w0.appendChild(b0);
+      } else {
+        w0.appendChild(el('h3', null, v.ready[v.me] ? '다른 사람을 기다리는 중' : '손패를 확인하세요'));
+      }
+      return w0;
+    }
+
     var wrap = el('div', 'floor');
     var canPick = v.phase === 'draw' && isMyTurn(v) && v.poolCount > 0;
     if (canPick) wrap.classList.add('can');
@@ -275,8 +361,14 @@
     if (fresh && ev.type === 'guess' && ev.hit) flashHit(ev);
 
     var cur = v.players[v.turn];
-    $('turnInfo').textContent = v.phase === 'over' ? '게임 종료'
-      : (cur ? (cur.id === v.me ? '내 차례' : cur.name + '의 차례') : '—');
+    if (v.phase === 'setup') {
+      var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
+      var total = v.players.filter(function (p) { return !p.out; }).length;
+      $('turnInfo').textContent = '손패 정리 — 준비 ' + done + '/' + total;
+    } else {
+      $('turnInfo').textContent = v.phase === 'over' ? '게임 종료'
+        : (cur ? (cur.id === v.me ? '내 차례' : cur.name + '의 차례') : '—');
+    }
 
     var others = [], meP = null, n = v.players.length;
     for (var k = 1; k <= n; k++) {
@@ -320,6 +412,24 @@
   function renderPanel(v) {
     var panel = $('panel'); panel.innerHTML = '';
     if (v.phase === 'over') return;
+
+    if (v.phase === 'setup') {
+      if (v.ready[v.me]) {
+        panel.appendChild(el('div', 'waiting', '다른 사람이 정리를 마치기를 기다리는 중…'));
+        return;
+      }
+      var sp = el('div', 'pnl');
+      var hasJk = (v.myJokers || []).length > 0;
+      sp.appendChild(el('div', 'ask', hasJk
+        ? '시작 손패를 정리합니다. 조커는 어느 자리에나 둘 수 있어요. 상대가 눈치채기 어려운 자리를 고르세요.'
+        : '시작 손패를 확인하세요. 숫자는 순서가 정해져 있어 옮길 수 없습니다.'));
+      var rb = el('button', 'primary', '준비 완료');
+      rb.style.marginBottom = '0';
+      rb.onclick = function () { act('setupReady', []); };
+      sp.appendChild(rb);
+      panel.appendChild(sp);
+      return;
+    }
 
     if (!isMyTurn(v)) {
       var cur = v.players[v.turn];
@@ -484,6 +594,10 @@
         s.log.push(seat.name + ' 연결 끊김 — 탈락 처리');
         var alive = R.alivePlayers(s);
         if (alive.length <= 1) { s.phase = 'over'; s.winner = alive.length ? alive[0].id : null; }
+        else if (s.phase === 'setup') {
+          var waiting = s.players.filter(function (q) { return !q.out && !s.ready[q.id]; });
+          if (!waiting.length) { s.phase = 'draw'; s.log.push('모두 준비 완료 — 시작합니다'); }
+        }
         else if (R.current(s).out) {
           s.drawn = null; s.pending = null; s.phase = 'draw';
           for (var i = 1; i <= s.players.length; i++) {

@@ -22,6 +22,7 @@ function allTiles(s) {
   if (s.pending) out.push(R.tileId(s.pending.tile));
   return out;
 }
+function begin(s){ s.players.forEach(function(p){ R.setupReady(s, p.id); }); return s; }
 function firstHidden(p){ for(var i=0;i<p.hand.length;i++) if(!p.hand[i].faceUp) return i; return -1; }
 // 놓기 단계를 자동으로 넘긴다
 function settle(s){ if (s.phase === 'place') R.place(s, R.current(s).id, s.pendingSpotsFallback !== undefined ? s.pendingSpotsFallback : R.validPlacements(R.current(s).hand, s.pending.tile)[0]); }
@@ -42,6 +43,46 @@ ok('조커 라벨', R.tileLabel({color:'b',joker:true}) === '검정 조커');
   ok(c[0]+'인 정렬됨(조커 제외)', s.players.every(function(p){return sorted(p.hand);}));
   ok(c[0]+'인 26장 보존', new Set(allTiles(s)).size === 26);
 });
+
+/* ---------------- 시작 손패 정리 ---------------- */
+section('시작 손패 정리');
+(function(){
+  var st = R.newGame(P(3), 77);
+  ok('시작은 setup', st.phase === 'setup');
+  ok('아무도 준비 안 됨', Object.keys(st.ready).length === 0);
+
+  // 조커가 있든 없든 손패 장수는 같다 (조커 보유가 드러나면 안 된다)
+  var lens = st.players.map(function(p){ return p.hand.length; });
+  ok('손패 장수가 모두 같다', lens.every(function(x){ return x === lens[0]; }), JSON.stringify(lens));
+
+  // 조커를 가진 사람 찾기 — 없으면 직접 만들어 검증
+  var who = null, at = -1;
+  st.players.forEach(function(p, pi){
+    p.hand.forEach(function(x, i){ if (R.isJoker(x.tile) && who === null) { who = p; at = i; } });
+  });
+  if (!who) { who = st.players[0]; who.hand[1] = { tile: J('b'), faceUp:false, missed:[] }; at = 1; }
+
+  var before = who.hand.map(function(x){ return R.tileId(x.tile); });
+  ok('조커를 맨 앞으로 옮김', R.setupMove(st, who.id, at, 0).ok === true);
+  ok('조커가 0번에 있다', R.isJoker(who.hand[0].tile));
+  ok('숫자 순서는 그대로', sorted(who.hand));
+  ok('장수 변화 없음', who.hand.length === before.length);
+  ok('맨 뒤로도 옮길 수 있다',
+     (R.setupMove(st, who.id, 0, who.hand.length - 1).ok && R.isJoker(who.hand[who.hand.length-1].tile)));
+
+  // 숫자 타일은 못 옮긴다
+  var numAt = -1;
+  who.hand.forEach(function(x,i){ if (!R.isJoker(x.tile) && numAt < 0) numAt = i; });
+  ok('숫자 타일 이동 거부', R.setupMove(st, who.id, numAt, 0).ok === false);
+
+  // 준비
+  ok('한 명 준비해도 시작 안 함', (R.setupReady(st, st.players[0].id).ok && st.phase === 'setup'));
+  R.setupReady(st, st.players[1].id);
+  ok('두 명만으로도 아직', st.phase === 'setup');
+  R.setupReady(st, st.players[2].id);
+  ok('모두 준비하면 시작', st.phase === 'draw');
+  ok('준비 끝나면 이동 거부', R.setupMove(st, who.id, 0, 1).ok === false);
+})();
 
 /* ---------------- 놓을 자리 ---------------- */
 section('놓을 자리');
@@ -73,7 +114,10 @@ ok('조커만 있으면 전부 가능', JSON.stringify(R.validPlacements(H([J('b
 /* ---------------- 바닥에서 집기 ---------------- */
 section('바닥에서 집기');
 var s = R.newGame(P(3), 42);
-ok('시작 phase=draw', s.phase === 'draw');
+ok('시작 phase=setup', s.phase === 'setup');
+ok('준비 전에는 못 집음', R.draw(s, 'p0', 0).ok === false);
+begin(s);
+ok('모두 준비하면 phase=draw', s.phase === 'draw');
 ok('남의 차례엔 못 집음', R.draw(s, 'p1', 0).ok === false);
 ok('없는 자리 거부', R.draw(s, 'p0', 999).ok === false);
 var poolBefore = s.pool.length;
@@ -96,7 +140,7 @@ ok('phase=decide', s.phase === 'decide');
 
 // 조커 맞히기
 (function(){
-  var st = R.newGame(P(2), 4);
+  var st = begin(R.newGame(P(2), 4));
   st.players[1].hand = [{tile:J('w'), faceUp:false}, {tile:b(3), faceUp:false}];
   st.pool = [b(7)];
   R.draw(st,'p0',0);
@@ -110,7 +154,7 @@ ok('phase=decide', s.phase === 'decide');
 /* ---------------- 빗나간 시도 기록 ---------------- */
 section('빗나간 시도 기록');
 (function(){
-  var st = R.newGame(P(2), 33);
+  var st = begin(R.newGame(P(2), 33));
   st.players[1].hand = [{tile:b(3),faceUp:false,missed:[]},{tile:w(8),faceUp:false,missed:[]}];
   st.pool = [b(0), b(1), b(2)];
   function 시도(n){ st.turn=0; st.phase='draw'; st.drawn=null; st.pending=null;
@@ -136,7 +180,7 @@ section('빗나간 시도 기록');
 /* ---------------- 놓기 단계 ---------------- */
 section('놓기');
 (function(){
-  var st = R.newGame(P(2), 15);
+  var st = begin(R.newGame(P(2), 15));
   st.players[0].hand = [{tile:b(1),faceUp:false},{tile:J('w'),faceUp:false},{tile:b(9),faceUp:false}];
   st.pool = [b(5)];
   st.turn = 0; st.phase = 'draw';
@@ -154,7 +198,7 @@ section('놓기');
 })();
 (function(){
   // 자리가 한 곳뿐이어도 고르는 단계를 거쳐야 한다 (조커를 숨기기 위해)
-  var st = R.newGame(P(2), 16);
+  var st = begin(R.newGame(P(2), 16));
   st.players[0].hand = [{tile:b(1),faceUp:false},{tile:b(9),faceUp:false}];
   st.pool = [b(5)];
   st.turn = 0; st.phase = 'draw'; R.draw(st,'p0',0);
@@ -167,7 +211,7 @@ section('놓기');
 
 /* ---------------- 바닥 소진 ---------------- */
 section('바닥 소진');
-var s3 = R.newGame(P(2), 11);
+var s3 = begin(R.newGame(P(2), 11));
 s3.pool = [];
 R.draw(s3,'p0',0);
 ok('바닥 비면 집지 않음', s3.drawn === null && s3.phase === 'guess');
@@ -181,7 +225,7 @@ ok('턴 종료', s3.phase === 'draw' && s3.turn === 1);
 
 /* ---------------- 탈락 / 승리 ---------------- */
 section('탈락 / 승리');
-var s5 = R.newGame(P(2), 9);
+var s5 = begin(R.newGame(P(2), 9));
 s5.players[1].hand.forEach(function(x,i){ if(i>0) x.faceUp = true; });
 R.draw(s5,'p0',0);
 var lastT = s5.players[1].hand[0].tile;
@@ -192,7 +236,7 @@ ok('종료 후 액션 거부', R.draw(s5,'p0',0).ok === false);
 
 /* ---------------- 정보 은닉 ---------------- */
 section('정보 은닉');
-var s6 = R.newGame(P(3), 21);
+var s6 = begin(R.newGame(P(3), 21));
 R.draw(s6,'p0',0);
 var v0 = R.viewFor(s6,'p0'), v1 = R.viewFor(s6,'p1');
 ok('내 타일은 숫자까지', v0.players[0].hand.every(function(x){ return x.tile.n !== null || x.tile.joker === true; }));
@@ -218,6 +262,14 @@ ok('바닥은 색만', v1.pool.length === s6.pool.length && v1.pool.every(functi
 /* ---------------- 무작위 완주 ---------------- */
 section('무작위 완주 500판');
 function randomAction(s, rng) {
+  if (s.phase === 'setup') {
+    // 조커를 아무 자리로 옮겨보고 준비
+    var p0 = s.players.filter(function(p){ return !s.ready[p.id]; })[0];
+    var jk = -1;
+    p0.hand.forEach(function(x,i){ if (R.isJoker(x.tile) && jk < 0) jk = i; });
+    if (jk >= 0 && rng() < 0.7) R.setupMove(s, p0.id, jk, Math.floor(rng() * p0.hand.length));
+    return R.setupReady(s, p0.id);
+  }
   var me = R.current(s).id;
   if (s.phase === 'draw') return R.draw(s, me, Math.floor(rng() * Math.max(1, s.pool.length)));
   if (s.phase === 'decide') return R.decide(s, me, rng() < 0.45);

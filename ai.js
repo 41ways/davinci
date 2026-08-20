@@ -104,6 +104,14 @@
     return spots[Math.floor(rng() * spots.length)];
   }
 
+  // 시작 정리: 조커를 아무 데나 섞어 넣는다
+  function chooseSetupSpot(view, rng) {
+    rng = rng || Math.random;
+    var me = null;
+    for (var i = 0; i < view.players.length; i++) if (view.players[i].id === view.me) me = view.players[i];
+    return Math.floor(rng() * Math.max(1, me ? me.hand.length : 1));
+  }
+
   // 스스로 공개할 때는 바깥쪽부터. 가운데를 열수록 상대에게 경계를 더 준다.
   function choosePenalty(view) {
     var me = null;
@@ -118,7 +126,8 @@
   }
 
   var API = { candidates: candidates, bestTarget: bestTarget, chooseGuess: chooseGuess,
-              chooseDecide: chooseDecide, choosePlace: choosePlace, choosePenalty: choosePenalty };
+              chooseDecide: chooseDecide, choosePlace: choosePlace, choosePenalty: choosePenalty,
+              chooseSetupSpot: chooseSetupSpot };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.AI = API;
 })(typeof self !== 'undefined' ? self : this);
