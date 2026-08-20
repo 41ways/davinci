@@ -309,7 +309,13 @@
   }
 
   /* ---------- 시야 자르기 ---------- */
-  // level 2 = 숫자까지, 1 = 색만, 0 = 아무것도 모름 (시작 정리 중인 남의 패)
+  function countColors(hand) {
+    var c = { b: 0, w: 0 };
+    hand.forEach(function (x) { c[x.tile.color]++; });
+    return c;
+  }
+
+  // level 2 = 숫자까지, 1 = 색만, 0 = 자리별 색을 모름 (시작 정리 중인 남의 패)
   function maskTile(t, level) {
     if (level >= 2) return { color: t.color, n: t.n, joker: !!t.joker };
     if (level === 1) return { color: t.color, n: null, joker: null };
@@ -339,12 +345,15 @@
       pending: isCur && s.pending ? s.pending : null,
       pendingSpots: isCur && s.pending ? validPlacements(cur.hand, s.pending.tile) : null,
       players: s.players.map(function (p) {
+        // 정리 중인 남의 패는 '무엇을 몇 장 가졌는지'는 알려주되 '어떤 순서로 놓았는지'는 감춘다
+        var arranging = s.phase === 'setup' && !s.ready[p.id] && p.id !== pid;
         return {
           id: p.id, name: p.name, out: p.out,
+          counts: arranging ? countColors(p.hand) : null,
           hand: p.hand.map(function (slot) {
             var level;
             if (p.id === pid || slot.faceUp) level = 2;
-            else if (s.phase === 'setup' && !s.ready[p.id]) level = 0;   // 정리 중에는 색도 비밀
+            else if (arranging) level = 0;   // 자리별 색은 준비 전까지 비밀
             else level = 1;
             return { faceUp: slot.faceUp, tile: maskTile(slot.tile, level),
                      missed: (slot.missed || []).slice() };

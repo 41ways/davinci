@@ -116,15 +116,23 @@ section('준비 전 색 은닉');
 
   var v = R.viewFor(st, 'p0');
   var 남 = v.players.filter(function(p){ return p.id !== 'p0'; });
-  ok('정리 중인 남의 패는 색도 모른다', 남.every(function(p){
+  ok('정리 중인 남의 패는 자리별 색을 모른다', 남.every(function(p){
     return p.hand.every(function(x){ return x.tile.color === null; }); }));
+  ok('대신 색 구성은 알려준다', 남.every(function(p){
+    return p.counts && p.counts.b + p.counts.w === st.handSize; }), JSON.stringify(남.map(function(p){return p.counts;})));
+  ok('알려준 구성이 실제와 일치', 남.every(function(vp){
+    var real = st.players.filter(function(rp){ return rp.id === vp.id; })[0];
+    var b = real.hand.filter(function(x){ return x.tile.color === 'b'; }).length;
+    return vp.counts.b === b && vp.counts.w === real.hand.length - b; }));
+  ok('내 패에는 구성 표시가 없다', v.players[0].counts === null);
   ok('내 패는 숫자까지 보인다', v.players[0].hand.every(function(x){ return x.tile.n !== null || x.tile.joker === true; }));
 
   R.setupReady(st, 'p1');
   var v2 = R.viewFor(st, 'p0');
   var p1 = v2.players.filter(function(p){ return p.id === 'p1'; })[0];
   var p2 = v2.players.filter(function(p){ return p.id === 'p2'; })[0];
-  ok('준비를 마치면 색이 공개된다', p1.hand.every(function(x){ return x.tile.color === 'b' || x.tile.color === 'w'; }));
+  ok('준비를 마치면 자리별 색이 공개된다', p1.hand.every(function(x){ return x.tile.color === 'b' || x.tile.color === 'w'; }));
+  ok('공개된 뒤엔 구성 표시가 사라진다', p1.counts === null);
   ok('아직 정리 중인 사람은 여전히 비밀', p2.hand.every(function(x){ return x.tile.color === null; }));
   ok('공개돼도 숫자는 비밀', p1.hand.every(function(x){ return x.tile.n === null; }));
 

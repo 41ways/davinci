@@ -160,6 +160,17 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .phead { display: flex; align-items: center; gap: 7px; font-size: 12.5px; margin-bottom: 10px; flex-wrap: wrap; }
 .phead .who { font-weight: 700; }
 .phead .meta { font-size: 10.5px; color: var(--faint); font-weight: 500; }
+.phead .meta.ok { color: var(--hit); font-weight: 700; }
+
+/* 정리 중인 사람의 색 구성 — 배치는 감추되 무엇을 몇 장 가졌는지는 보여준다 */
+.mix { display: inline-flex; gap: 3px; align-items: center; }
+.mix span {
+  font-size: 10px; font-weight: 800; line-height: 1;
+  min-width: 17px; text-align: center; padding: 3px 4px; border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.mix .mixb { background: var(--tb-bg); color: var(--tb-fg); }
+.mix .mixw { background: var(--tw-bg); color: var(--tw-fg); border: 1px solid var(--tw-line); }
 
 .hand { display: flex; gap: 7px; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
 .mine .hand { gap: 10px; }

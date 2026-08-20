@@ -200,9 +200,18 @@
       head.appendChild(el('span', 'meta', '· ' + (v.drawnColor === 'b' ? '검정' : '흰색') + ' 집음'));
     }
     if (v.phase === 'setup' && !p.out) {
-      head.appendChild(el('span', 'meta', v.ready[p.id]
-        ? '· 준비 완료'
-        : '· ' + p.hand.length + '/' + v.handSize + '장'));
+      if (v.ready[p.id]) {
+        head.appendChild(el('span', 'meta ok', '· 준비 완료'));
+      } else if (p.counts) {
+        // 무엇을 몇 장 가졌는지는 알려준다. 배치만 비밀이다.
+        head.appendChild(el('span', 'meta', '· ' + p.hand.length + '/' + v.handSize + '장'));
+        var mix = el('span', 'mix');
+        if (p.counts.b) { var mb = el('span', 'mixb'); mb.textContent = p.counts.b; mix.appendChild(mb); }
+        if (p.counts.w) { var mw = el('span', 'mixw'); mw.textContent = p.counts.w; mix.appendChild(mw); }
+        if (mix.childNodes.length) head.appendChild(mix);
+      } else {
+        head.appendChild(el('span', 'meta', '· ' + p.hand.length + '/' + v.handSize + '장'));
+      }
     }
     box.appendChild(head);
 
