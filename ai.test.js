@@ -5,13 +5,24 @@ var AI = require('./ai.js');
 var pass = 0, fail = 0;
 function ok(n, c, e) { if (c) pass++; else { fail++; console.log('  ✗ ' + n + (e ? '  → ' + e : '')); } }
 function P(n){ var a=[]; for(var i=0;i<n;i++) a.push({id:'p'+i,name:'P'+i}); return a; }
+// 시작 정리 단계를 넘긴다. 조커가 있으면 아무 자리로 옮겨보고 준비한다.
+function begin(s, rng){
+  rng = rng || Math.random;
+  s.players.forEach(function(p){
+    var jk = -1;
+    p.hand.forEach(function(x,i){ if (R.isJoker(x.tile) && jk < 0) jk = i; });
+    if (jk >= 0) R.setupMove(s, p.id, jk, Math.floor(rng() * p.hand.length));
+    R.setupReady(s, p.id);
+  });
+  return s;
+}
 
 console.log('추론 정확성');
 // 후보 목록에는 반드시 정답이 들어 있어야 한다 (정답을 배제하면 치명적 버그)
 var missed = 0, sizes = [], certain = 0, certainWrong = 0;
 for (var g = 0; g < 300; g++) {
-  var s = R.newGame(P(2 + g % 3), 3000 + g);
   var rng = R.mulberry32(7000 + g);
+  var s = begin(R.newGame(P(2 + g % 3), 3000 + g), rng);
   var steps = 0;
   while (s.phase !== 'over' && steps++ < 500) {
     var me = R.current(s).id;
@@ -65,8 +76,8 @@ function randomMove(s, view, rng) {
 }
 var win = { bot: 0, rand: 0, draw: 0 };
 for (var k = 0; k < 1000; k++) {
-  var st = R.newGame([{id:'bot',name:'봇'},{id:'rand',name:'무작위'}], 90000 + k);
   var rr = R.mulberry32(4000 + k);
+  var st = begin(R.newGame([{id:'bot',name:'봇'},{id:'rand',name:'무작위'}], 90000 + k), rr);
   st.turn = k % 2;                       // 선공을 번갈아
   var n = 0;
   while (st.phase !== 'over' && n++ < 800) {
