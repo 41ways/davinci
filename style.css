@@ -401,3 +401,10 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
   display: none; align-items: center; justify-content: center;
   padding: 32px; text-align: center; font-size: 13px; line-height: 1.9; color: var(--dim);
 }
+
+/* 만든 사람 */
+.sig {
+  position: fixed; right: 9px; bottom: 7px; z-index: 1;
+  font-size: 9px; letter-spacing: .1em; color: var(--faint);
+  opacity: .4; pointer-events: none; user-select: none;
+}
