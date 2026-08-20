@@ -1,0 +1,237 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #0d0f14; color: #e6e9ef;
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-y: auto;
+}
+
+.screen { min-height: 100%; display: flex; justify-content: center; padding: 26px 18px 40px; }
+.screen.hidden, .hidden { display: none !important; }
+.wrap { width: 100%; max-width: 430px; }
+
+h1 { font-size: 21px; letter-spacing: .2em; font-weight: 700; margin-bottom: 8px; }
+h2 { font-size: 12px; letter-spacing: .12em; color: #8b93a4; font-weight: 600; margin-bottom: 10px; }
+h2.sub { text-align: center; }
+.tag { font-size: 12.5px; line-height: 1.8; color: #8b93a4; margin-bottom: 20px; }
+.fine { font-size: 11px; line-height: 1.7; color: #5d6577; margin-top: 8px; }
+.dim { color: #6b7386; }
+
+.block { background: #141821; border: 1px solid #1f2532; border-radius: 12px; padding: 15px; margin-bottom: 14px; }
+.row { display: flex; gap: 8px; align-items: flex-end; }
+.grow { flex: 1; }
+
+.field { display: block; margin-bottom: 12px; }
+.field span { display: block; font-size: 10.5px; letter-spacing: .1em; color: #6b7386; margin-bottom: 5px; }
+input, select {
+  width: 100%; font: inherit; font-size: 14px; padding: 10px 12px;
+  color: #e6e9ef; background: #0f131a; border: 1px solid #232a38; border-radius: 8px;
+}
+input:focus, select:focus { outline: none; border-color: #4a86ff; }
+.code-in { text-transform: uppercase; letter-spacing: .34em; text-align: center; font-weight: 700; }
+
+button {
+  font: inherit; font-size: 13.5px; font-weight: 600; padding: 11px 16px;
+  border-radius: 8px; cursor: pointer; color: #e6e9ef;
+  background: #1c222e; border: 1px solid #2a3241;
+}
+button:hover:not(:disabled) { background: #232b39; }
+button:disabled { opacity: .38; cursor: default; }
+button.primary { background: #4a86ff; border-color: #4a86ff; color: #04102a; width: 100%; margin-bottom: 8px; }
+button.primary:hover:not(:disabled) { background: #6b9dff; }
+button.ghost { background: none; border-color: transparent; color: #6b7386; width: 100%; margin-top: 6px; }
+
+/* 대기실 */
+.code {
+  font-size: 42px; font-weight: 800; letter-spacing: .28em;
+  text-align: center; color: #4a86ff; margin: 4px 0 4px; text-indent: .28em;
+}
+.seats { margin: 18px 0 14px; }
+.seat {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 13px; margin-bottom: 7px;
+  background: #141821; border: 1px solid #1f2532; border-radius: 9px; font-size: 13px;
+}
+.seat .pill { font-size: 10px; padding: 2px 7px; border-radius: 20px; background: #222a38; color: #8b93a4; }
+.seat .pill.host { background: #1b3155; color: #7aa9ff; }
+
+/* 게임 판 */
+.bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; font-size: 12.5px;
+  border-bottom: 1px solid #1a1f2b; position: sticky; top: 0; background: #0d0f14; z-index: 5;
+}
+.bar .spacer { flex: 1; }
+.toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #8b93a4; cursor: pointer; }
+.toggle input { width: auto; }
+
+#game { display: block; padding: 0 0 30px; }
+#panel, .log { max-width: 620px; margin: 0 auto; padding: 0 14px; }
+
+/* 네 방향 자리 */
+.table {
+  max-width: 900px; margin: 0 auto; padding: 12px 14px 0;
+  display: grid; gap: 10px;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);
+  grid-template-areas:
+    "top    top    top"
+    "left   center right"
+    "me     me     me";
+}
+.cell.top { grid-area: top; }
+.cell.left { grid-area: left; }
+.cell.right { grid-area: right; }
+.cell.center { grid-area: center; }
+.cell.me { grid-area: me; }
+.cell:empty { display: none; }
+
+@media (max-width: 640px) {
+  .table { grid-template-columns: 1fr; grid-template-areas: "top" "left" "right" "center" "me"; }
+}
+
+.player {
+  padding: 10px; border-radius: 11px;
+  background: #12161e; border: 1px solid #1c2230; height: 100%;
+}
+.player.turn { border-color: #4a86ff; box-shadow: 0 0 0 1px rgba(74,134,255,.25); }
+.player.out { opacity: .38; }
+.player.mine { background: #131a24; border-color: #24303f; padding: 14px; }
+.phead { display: flex; align-items: center; gap: 7px; font-size: 12px; margin-bottom: 9px; flex-wrap: wrap; }
+.phead .who { font-weight: 600; }
+.phead .meta { font-size: 10.5px; color: #6b7386; }
+
+.hand { display: flex; gap: 5px; flex-wrap: wrap; align-items: flex-end; }
+.mine .hand { gap: 7px; justify-content: center; }
+
+/* 작은 수 -> 큰 수 방향 */
+.dir {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 7px; font-size: 9px; color: #59617311; color: #596173;
+  letter-spacing: .08em;
+}
+.dir .line { flex: 1; height: 1px; background: linear-gradient(90deg, #2a3243, #4a5468); }
+.mine .dir { font-size: 10px; }
+
+/* 타일 */
+.tile {
+  --tw: 34px;
+  width: var(--tw); height: 48px; border-radius: 6px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 1px solid transparent; position: relative; user-select: none;
+  transition: transform .12s;
+}
+.tile.big { --tw: 52px; height: 74px; font-size: 23px; border-radius: 8px; }
+.tile.b { background: #23283a; color: #cfd6e6; border-color: #333b52; }
+.tile.w { background: #eceadf; color: #23262e; border-color: #cbc8ba; }
+.tile.down { color: transparent; }
+.tile.down::after {
+  content: '?'; position: absolute; font-size: 14px; font-weight: 600; color: rgba(140,150,170,.5);
+}
+.tile.big.down::after { font-size: 20px; }
+.tile.w.down::after { color: rgba(90,95,105,.45); }
+.tile.up { box-shadow: inset 0 0 0 2px rgba(255,120,90,.55); }
+.tile.own { border-style: dashed; border-color: #4a86ff; }
+.tile.own::after { content: none; }
+.tile.joker { font-size: 11px; letter-spacing: -.02em; }
+.tile.big.joker { font-size: 15px; }
+.tile.pick { cursor: pointer; }
+.tile.pick:hover { transform: translateY(-4px); }
+.tile.sel { outline: 2px solid #4a86ff; outline-offset: 2px; }
+.tile.drawn { box-shadow: 0 0 0 2px #4a86ff; }
+
+/* 적중 연출 — 넘어지고 금이 간다 */
+@keyframes smash {
+  0%   { transform: none; }
+  12%  { transform: translateY(-10px) scale(1.12); }
+  28%  { transform: translateX(-4px) rotate(-8deg); }
+  44%  { transform: translateX(4px) rotate(10deg); }
+  100% { transform: translateY(4px) rotate(74deg); }
+}
+@keyframes flashwhite { 0%,100% { background: transparent; } 20% { background: rgba(255,255,255,.85); } }
+.tile.smash { animation: smash .75s cubic-bezier(.3,1.4,.5,1) forwards; z-index: 2; }
+.tile.smash::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  animation: flashwhite .5s ease-out;
+  background-image:
+    linear-gradient(115deg, transparent 46%, rgba(255,80,60,.9) 47%, transparent 49%),
+    linear-gradient(58deg, transparent 58%, rgba(255,80,60,.75) 59%, transparent 61%);
+}
+.hitflag {
+  position: fixed; left: 50%; top: 34%; transform: translate(-50%,-50%);
+  font-size: 34px; font-weight: 800; letter-spacing: .18em; z-index: 25;
+  color: #ff8a5c; text-shadow: 0 4px 24px rgba(255,90,60,.5);
+  pointer-events: none; animation: pop .9s ease-out forwards;
+}
+@keyframes pop {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.5); }
+  18% { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+  70% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-58%) scale(1); }
+}
+
+/* 바닥 */
+.floor { text-align: center; }
+.floor h3 { font-size: 10.5px; letter-spacing: .12em; color: #6b7386; font-weight: 600; margin-bottom: 9px; }
+.floor .pile { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.floor .pile .tile { width: 26px; height: 36px; }
+.floor .pile .tile::after { font-size: 11px; }
+.floor.can .pile .tile { cursor: pointer; }
+.floor.can .pile .tile:hover { transform: translateY(-5px); }
+.drawn-box { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.drawn-box span { font-size: 10px; color: #6b7386; letter-spacing: .08em; }
+
+/* 끼워 넣는 모션 — 패 사이가 벌어지며 들어간다 */
+@keyframes insertdrop {
+  0%   { width: 0; opacity: 0; transform: translateY(-54px) rotate(-10deg); }
+  45%  { width: var(--tw); opacity: 1; transform: translateY(-16px) rotate(-4deg); }
+  72%  { transform: translateY(4px) rotate(1deg); }
+  100% { width: var(--tw); transform: none; }
+}
+.tile.inserted { animation: insertdrop .62s cubic-bezier(.25,1.1,.4,1); z-index: 2; }
+
+/* 놓을 자리 */
+.slots { display: flex; gap: 6px; justify-content: center; align-items: center; margin-top: 4px; }
+.slot {
+  width: 16px; height: 48px; border-radius: 5px; flex: none; cursor: pointer;
+  border: 1px dashed #2b3346; background: rgba(120,140,180,.05);
+  transition: background .12s, border-color .12s;
+}
+.slot.big { height: 74px; width: 20px; }
+.slot.ok { border-color: #4a86ff; background: rgba(74,134,255,.16); }
+.slot:hover { background: rgba(74,134,255,.34); border-color: #6b9dff; }
+
+/* 액션 패널 */
+#panel { margin-top: 12px; }
+.pnl { background: #141821; border: 1px solid #1f2532; border-radius: 11px; padding: 14px; }
+.pnl .ask { font-size: 12.5px; color: #a9b1c2; margin-bottom: 11px; line-height: 1.6; }
+.pnl .ask b { color: #e6e9ef; }
+.nums { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.nums button { padding: 12px 0; font-size: 15px; }
+.nums button.jk { grid-column: span 2; font-size: 13px; }
+.nums button.off { opacity: .18; }
+.acts { display: flex; gap: 8px; }
+.acts button { flex: 1; }
+.waiting { font-size: 12.5px; color: #6b7386; text-align: center; padding: 15px; }
+
+.log { margin-top: 14px; font-size: 11px; line-height: 1.85; color: #6b7386; }
+.log div:last-child { color: #a9b1c2; }
+
+/* 결과 */
+.overlay {
+  position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+  background: rgba(8,10,14,.9); padding: 24px;
+}
+.overlay .card { max-width: 340px; width: 100%; text-align: center; }
+.big { font-size: 26px; font-weight: 700; letter-spacing: .1em; margin-bottom: 10px; }
+.sub { font-size: 13px; line-height: 1.9; color: #8b93a4; margin-bottom: 18px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  background: #262d3c; color: #e6e9ef; font-size: 12.5px;
+  padding: 10px 16px; border-radius: 8px; z-index: 30;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+  max-width: 90vw; text-align: center;
+}
+.toast.on { opacity: 1; }

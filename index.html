@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>다빈치코드</title>
+<meta name="description" content="다빈치코드 보드게임. 방 코드로 최대 4인 온라인 대전.">
+<meta name="theme-color" content="#0d0f14">
+<meta property="og:title" content="다빈치코드">
+<meta property="og:description" content="방 코드 하나로 최대 4인 온라인 대전.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f14'/%3E%3Crect x='6' y='8' width='8' height='16' rx='2' fill='%23f0ece4'/%3E%3Crect x='18' y='8' width='8' height='16' rx='2' fill='%232a2f3a' stroke='%23555d6e'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 홈 -->
+<section id="home" class="screen">
+  <div class="wrap">
+    <h1>다빈치코드</h1>
+    <p class="tag">숫자는 가려지고 색만 보입니다. 순서를 읽어 상대의 숫자를 맞히세요.</p>
+
+    <label class="field">
+      <span>이름</span>
+      <input id="name" maxlength="12" placeholder="이름" autocomplete="off">
+    </label>
+
+    <div class="block">
+      <h2>혼자 연습</h2>
+      <div class="row">
+        <label class="field grow"><span>인원</span>
+          <select id="soloCount"><option value="2">2인</option><option value="3">3인</option><option value="4" selected>4인</option></select>
+        </label>
+        <label class="field grow"><span>봇 실력</span>
+          <select id="soloSkill">
+            <option value="0.45">쉬움</option>
+            <option value="0.75" selected>보통</option>
+            <option value="1">어려움</option>
+          </select>
+        </label>
+      </div>
+      <button id="btnSolo" class="primary">봇과 시작</button>
+    </div>
+
+    <div class="block">
+      <h2>온라인 (최대 4인)</h2>
+      <button id="btnHost" class="primary">방 만들기</button>
+      <div class="row">
+        <input id="joinCode" class="grow code-in" maxlength="4" placeholder="방 코드" autocomplete="off">
+        <button id="btnJoin">참가</button>
+      </div>
+      <p class="fine">방장의 브라우저가 심판을 맡습니다. 방장이 나가면 판이 끝납니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 대기실 -->
+<section id="lobby" class="screen hidden">
+  <div class="wrap">
+    <h2 class="sub">방 코드</h2>
+    <div class="code" id="roomCode">····</div>
+    <p class="fine" id="lobbyHint">친구에게 이 코드를 알려주세요.</p>
+    <div id="seats" class="seats"></div>
+    <div class="row" id="hostControls">
+      <button id="btnAddBot" class="grow">봇 추가</button>
+      <button id="btnStart" class="primary grow">시작</button>
+    </div>
+    <button id="btnLeave" class="ghost">나가기</button>
+  </div>
+</section>
+
+<!-- 게임 -->
+<section id="game" class="screen hidden">
+  <header class="bar">
+    <span id="turnInfo">—</span>
+    <span class="spacer"></span>
+    <label class="toggle"><input type="checkbox" id="hint"><span>추론 보조</span></label>
+  </header>
+
+  <div class="table">
+    <div class="cell top"    id="seatTop"></div>
+    <div class="cell left"   id="seatLeft"></div>
+    <div class="cell center" id="center"></div>
+    <div class="cell right"  id="seatRight"></div>
+    <div class="cell me"     id="seatMe"></div>
+  </div>
+
+  <div id="panel"></div>
+  <div id="log" class="log"></div>
+</section>
+
+<!-- 결과 -->
+<div id="over" class="overlay hidden">
+  <div class="card">
+    <div class="big" id="overTitle">—</div>
+    <p class="sub" id="overText"></p>
+    <button id="btnAgain" class="primary">처음으로</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="vendor/peerjs.min.js"></script>
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="net.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
