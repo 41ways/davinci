@@ -246,8 +246,8 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .tile.own { border-style: dashed; border-color: var(--accent); }
 .tile.own::after { content: none; }
 
-.tile.joker { font-size: 13px; letter-spacing: -.03em; }
-.tile.big.joker { font-size: 17px; }
+.tile.joker { font-size: 34px; font-weight: 900; line-height: 1; letter-spacing: 0; }
+.tile.big.joker { font-size: 44px; }
 
 .tile.pick { cursor: pointer; }
 .tile.pick:hover { transform: translateY(-5px); box-shadow: 0 4px 0 var(--tb-edge), 0 12px 20px rgba(74,57,33,.24); }
@@ -322,6 +322,7 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .floor .pile { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .floor .pile + .pile { margin-top: 7px; }
 .floor .pile .tile { --tilew: 30px; --tileh: 42px; font-size: 13px; border-radius: 6px; }
+.floor .pile .tile.joker { font-size: 22px; }
 .floor .pile .tile::after { font-size: 13px; }
 .floor.can .pile .tile { cursor: pointer; }
 .floor.can .pile .tile:hover { transform: translateY(-6px); }
@@ -407,7 +408,7 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 
 .a-who { font-size: 14px; font-weight: 700; color: var(--dim); white-space: nowrap; }
 .announce .tile { --tilew: 36px; --tileh: 50px; font-size: 18px; }
-.announce .tile.joker { font-size: 12px; }
+.announce .tile.joker { font-size: 28px; }
 .a-label {
   font-size: 25px; font-weight: 900; letter-spacing: .04em; color: var(--ink);
   white-space: nowrap; padding-right: 8px;
@@ -458,5 +459,5 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
 .glist b { color: var(--ink); font-weight: 700; }
 .gtiles { display: flex; gap: 7px; justify-content: center; margin: 14px 0 4px; }
 .gtiles .tile { --tilew: 40px; --tileh: 56px; font-size: 19px; }
-.gtiles .tile.joker { font-size: 12px; }
+.gtiles .tile.joker { font-size: 30px; }
 .block .dir { margin-top: 10px; }

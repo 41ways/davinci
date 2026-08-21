@@ -91,7 +91,7 @@
 
     box.appendChild(el('span', 'a-who', ev.byName + ' → ' + ev.targetName + ' ' + (ev.index + 1) + '번째'));
     var t = el('div', 'tile ' + ev.guessed.color + (ev.guessed.joker ? ' joker' : ''));
-    t.textContent = ev.guessed.joker ? '조커' : ev.guessed.n;
+    t.textContent = ev.guessed.joker ? '—' : ev.guessed.n;
     box.appendChild(t);
     box.appendChild(el('span', 'a-label', withResult ? (ev.hit ? '적중' : '빗나감') : '예측'));
 
@@ -193,7 +193,7 @@
     if (!tile.color) { e.classList.add('down'); return e; }
     var known = faceUp || opts.own;
     if (known) {
-      if (tile.joker) { e.classList.add('joker'); e.textContent = '조커'; }
+      if (tile.joker) { e.classList.add('joker'); e.textContent = '—'; }
       else e.textContent = tile.n;
       if (faceUp) e.classList.add('up'); else e.classList.add('own');
     } else {
