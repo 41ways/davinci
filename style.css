@@ -420,3 +420,43 @@ button.ghost:hover { background: rgba(74,57,33,.05); }
   .a-label { font-size: 20px; }
   .announce { gap: 10px; padding: 8px 10px 8px 14px; }
 }
+
+/* ---------- 타이틀 ---------- */
+.hero { text-align: center; padding-top: 4vh; }
+
+.hero-tiles {
+  display: flex; justify-content: center; align-items: flex-end;
+  margin-bottom: 30px; padding-top: 14px;
+}
+.hero-tiles .tile {
+  margin: 0 -7px;
+  transform: rotate(var(--r)) translateY(0);
+  animation: heroFloat 3.4s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+@keyframes heroFloat {
+  0%, 100% { transform: rotate(var(--r)) translateY(0); }
+  50%      { transform: rotate(var(--r)) translateY(-9px); }
+}
+
+.hero-title {
+  font-size: 34px; font-weight: 900; letter-spacing: .26em;
+  text-indent: .26em; margin-bottom: 14px; color: var(--ink);
+}
+.hero-rule {
+  width: 54px; height: 3px; border-radius: 2px; margin: 0 auto 16px;
+  background: linear-gradient(90deg, var(--accent), #d98b4a);
+}
+.hero-tag { font-size: 13px; line-height: 1.95; color: var(--dim); margin-bottom: 30px; }
+.hero .primary { font-size: 15px; padding: 14px 16px; }
+
+/* ---------- 가이드 ---------- */
+.gtext { font-size: 12.5px; line-height: 1.95; color: var(--dim); }
+.gtext b { color: var(--ink); font-weight: 700; }
+.glist { margin: 10px 0 10px 16px; }
+.glist li { font-size: 12.5px; line-height: 1.95; color: var(--dim); }
+.glist b { color: var(--ink); font-weight: 700; }
+.gtiles { display: flex; gap: 7px; justify-content: center; margin: 14px 0 4px; }
+.gtiles .tile { --tilew: 40px; --tileh: 56px; font-size: 19px; }
+.gtiles .tile.joker { font-size: 12px; }
+.block .dir { margin-top: 10px; }

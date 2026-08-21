@@ -12,8 +12,10 @@
     heldView: null, holdUntil: 0, holdTimer: null, announceTimer: null
   };
 
+  var SCREENS = ['title', 'guide', 'menu', 'lobby', 'game'];
   function show(which) {
-    ['home', 'lobby', 'game'].forEach(function (id) { $(id).classList.toggle('hidden', id !== which); });
+    SCREENS.forEach(function (id) { $(id).classList.toggle('hidden', id !== which); });
+    window.scrollTo(0, 0);
   }
   var toastTimer = null;
   function toast(msg) {
@@ -710,7 +712,7 @@
     App.mode = 'client';
     App.net = new Net();
     App.net.on.status = toast;
-    App.net.on.error = function (m) { toast(m); show('home'); App.net.close(); };
+    App.net.on.error = function (m) { toast(m); show('menu'); App.net.close(); };
     App.net.on.open = function (c) {
       $('roomCode').textContent = c;
       $('lobbyHint').textContent = '방장이 시작하기를 기다리는 중…';
@@ -728,6 +730,11 @@
   }
 
   /* ---------------- 버튼 ---------------- */
+  $('btnGo').onclick = function () { show('menu'); };
+  $('btnGuide').onclick = function () { show('guide'); };
+  $('btnGuideBack').onclick = function () { show('title'); };
+  $('btnMenuBack').onclick = function () { show('title'); };
+
   $('btnSolo').onclick = function () {
     var count = parseInt($('soloCount').value, 10);
     App.skill = parseFloat($('soloSkill').value);
