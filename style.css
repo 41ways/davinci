@@ -429,33 +429,37 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 
 .hero-tiles {
   display: flex; justify-content: center; align-items: flex-end;
-  margin-bottom: 30px; padding-top: 14px; perspective: 700px;
+  margin-bottom: 30px; padding-top: clamp(28px, 12vh, 130px);   /* 화면을 조금 아래로 */
+  perspective: 700px;
 }
 /* 타일 다섯 장이 미끄러져 들어와 정렬되고(--i 순서), 한 장씩 뒤집히며 글자가 드러난다.
    등장은 translate, 뒤집기는 rotate(개별 속성), 둥둥은 transform — 셋이 서로 안 겹친다 */
 .hero-tiles .tile {
   --d: calc(var(--i) * .14s);
   --flip: calc(1.05s + var(--i) * .3s);
-  margin: 0 -7px;
+  --tilew: 76px; --tileh: 106px; font-size: 34px;   /* 타일이 곧 표제라 크게 */
+  margin: 0 -1px;
   transform: rotate(var(--r)) translateY(0);
   animation: tileIn .6s cubic-bezier(.2,.8,.25,1.08) var(--d) backwards,
-             flip .56s ease-in-out var(--flip) both,
+             flip .62s cubic-bezier(.45,.05,.25,1) var(--flip) both,
              heroFloat 3.4s ease-in-out calc(var(--flip) + .8s) infinite;
 }
 @keyframes tileIn { from { opacity: 0; translate: 120px 8px; } 70% { translate: -4px 0; } }
-@keyframes flip { 0% { rotate: y 0deg; } 49.9% { rotate: y 90deg; } 50.1% { rotate: y -90deg; } 100% { rotate: y 0deg; } }
-/* 뒤집히는 중간에 뒷면 표시(·)는 사라지고 글자가 나타난다 */
-.hero-tiles .tile.down::after { animation: vanish 0s linear calc(var(--flip) + .28s) forwards; }
-.hero-tiles .tile .face { opacity: 0; animation: appear 0s linear calc(var(--flip) + .28s) forwards; }
-/* 뒤집힌 타일은 글자를 투명하게 숨기므로(.tile.down) 표제 글자만 색을 되살린다 */
+/* 진짜 3D 뒤집기 — 0→180° 를 끊김 없이 돌고, 앞면(?)은 뒷면이 되는 순간 숨고
+   글자는 미리 180° 돌려 둬서 다 돌았을 때 바로 읽힌다 */
+@keyframes flip { to { rotate: y 180deg; } }
+.hero-tiles .tile { transform-style: preserve-3d; will-change: transform, rotate; }
+.hero-tiles .tile.down::after { backface-visibility: hidden; }
+.hero-tiles .tile .face {
+  display: inline-block; rotate: y 180deg; backface-visibility: hidden;
+  font-family: var(--display); font-weight: 700;   /* 표제와 같은 명조 */
+}
 .hero-tiles .tile.b .face { color: var(--tb-fg); }
 .hero-tiles .tile.w .face { color: var(--tw-fg); }
-@keyframes vanish { to { opacity: 0; } }
-@keyframes appear { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .hero-tiles .tile { animation: none; }
   .hero-tiles .tile.down::after { display: none; }
-  .hero-tiles .tile .face { opacity: 1; animation: none; }
+  .hero-tiles .tile { rotate: y 180deg; }
 }
 
 /* 표제 글자는 타일이 쓴다 — h1 은 스크린리더용으로만 남긴다 */
