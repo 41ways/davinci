@@ -429,28 +429,33 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 
 .hero-tiles {
   display: flex; justify-content: center; align-items: flex-end;
-  margin-bottom: 30px; padding-top: 14px;
+  margin-bottom: 30px; padding-top: 14px; perspective: 700px;
 }
+/* 타일 다섯 장이 미끄러져 들어와 정렬되고(--i 순서), 한 장씩 뒤집히며 글자가 드러난다.
+   등장은 translate, 뒤집기는 rotate(개별 속성), 둥둥은 transform — 셋이 서로 안 겹친다 */
 .hero-tiles .tile {
+  --d: calc(var(--i) * .14s);
+  --flip: calc(1.05s + var(--i) * .3s);
   margin: 0 -7px;
   transform: rotate(var(--r)) translateY(0);
-  /* 오른쪽에서 한 장씩 미끄러져 들어와 순서대로 놓인다 — 이 게임의 '정렬'.
-     등장은 translate(개별 속성), 둥둥은 transform이라 서로 안 겹친다 */
-  animation: tileIn .62s cubic-bezier(.2,.8,.25,1.08) calc(var(--d) * .9) backwards,
-             heroFloat 3.4s ease-in-out calc(var(--d) + 1.4s) infinite;
+  animation: tileIn .6s cubic-bezier(.2,.8,.25,1.08) var(--d) backwards,
+             flip .56s ease-in-out var(--flip) both,
+             heroFloat 3.4s ease-in-out calc(var(--flip) + .8s) infinite;
 }
 @keyframes tileIn { from { opacity: 0; translate: 120px 8px; } 70% { translate: -4px 0; } }
-/* 처음엔 전부 뒤집혀 있다가, 다 놓인 뒤 숫자 타일만 하나씩 열린다 — 상대 패를 맞히는 순간 */
-.hero-tiles .tile:not(.down)::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 2;
-  background: linear-gradient(168deg, var(--tb-top) 0%, var(--tb-bg) 55%);
-  border: 1px solid var(--tb-line);
-  animation: uncover .5s cubic-bezier(.4,0,.2,1) calc(1.35s + var(--d) * .8) forwards;
-}
-@keyframes uncover { to { scale: 0 1; opacity: 0; } }
+@keyframes flip { 0% { rotate: y 0deg; } 49.9% { rotate: y 90deg; } 50.1% { rotate: y -90deg; } 100% { rotate: y 0deg; } }
+/* 뒤집히는 중간에 뒷면 표시(·)는 사라지고 글자가 나타난다 */
+.hero-tiles .tile.down::after { animation: vanish 0s linear calc(var(--flip) + .28s) forwards; }
+.hero-tiles .tile .face { opacity: 0; animation: appear 0s linear calc(var(--flip) + .28s) forwards; }
+/* 뒤집힌 타일은 글자를 투명하게 숨기므로(.tile.down) 표제 글자만 색을 되살린다 */
+.hero-tiles .tile.b .face { color: var(--tb-fg); }
+.hero-tiles .tile.w .face { color: var(--tw-fg); }
+@keyframes vanish { to { opacity: 0; } }
+@keyframes appear { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .hero-tiles .tile { animation: none; }
-  .hero-tiles .tile:not(.down)::after { display: none; }
+  .hero-tiles .tile.down::after { display: none; }
+  .hero-tiles .tile .face { opacity: 1; animation: none; }
 }
 
 .hero-title {
