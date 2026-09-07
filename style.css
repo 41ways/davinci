@@ -458,11 +458,8 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
   .hero-tiles .tile .face { opacity: 1; animation: none; }
 }
 
-.hero-title {
-  font-family: var(--display);
-  font-size: 36px; font-weight: 700; letter-spacing: .26em;
-  text-indent: .26em; margin-bottom: 14px; color: var(--ink);
-}
+/* 표제 글자는 타일이 쓴다 — h1 은 스크린리더용으로만 남긴다 */
+.hero-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .hero-rule {
   width: 54px; height: 3px; border-radius: 2px; margin: 0 auto 16px;
   background: linear-gradient(90deg, var(--accent), #7d93b3);
