@@ -590,3 +590,56 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
   background: linear-gradient(90deg, transparent, rgba(47,79,122,.28) 12%, rgba(47,79,122,.28) 88%, transparent);
   box-shadow: 0 1px 0 rgba(255,255,255,.9);
 }
+
+/* ════════════════ 바닥 ════════════════
+   낱장이 격자처럼 늘어서서 줄이 어정쩡하게 넘어갔다.
+   실제로 펼쳐 놓은 것처럼 겹쳐서 한 줄에 담고, 얕은 트레이 위에 얹는다. */
+.floor {
+  padding: 13px 10px 11px;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(30,40,55,.055), rgba(30,40,55,.02));
+  box-shadow:
+    inset 0 2px 7px rgba(30,40,55,.11),
+    inset 0 0 0 1px rgba(30,40,55,.05),
+    0 1px 0 rgba(255,255,255,.8);
+}
+.floor h3 { color: var(--dim); }
+
+.floor .pile {
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 3px 0 5px;
+}
+.floor .pile .tile { margin-left: -7px; }
+.floor .pile .tile:first-child { margin-left: 0; }
+/* 손으로 펼친 것처럼 조금씩 어긋나게 — rotate 는 hover 의 transform 과 겹치지 않는다 */
+.floor .pile .tile:nth-child(3n)   { rotate: -1.6deg; }
+.floor .pile .tile:nth-child(3n+1) { rotate:  1.3deg; }
+.floor .pile .tile:nth-child(4n)   { rotate:  2.1deg; }
+.floor.can .pile .tile:hover { rotate: 0deg; z-index: 2; }
+
+/* 집은 타일은 트레이 밖으로 한 단 올라온다 */
+.drawn-box {
+  padding: 11px 14px 12px; margin-left: auto; margin-right: auto;
+  border-radius: 12px; width: max-content;
+  background: linear-gradient(180deg, #ffffff, #f4f7fb);
+  box-shadow: inset 0 1px 0 #fff, 0 3px 10px -4px rgba(30,40,55,.28);
+}
+
+/* ════════════════ 타이틀 — 아래 빈 공간 정리 ════════════════
+   내용이 위로 몰리고 아래가 텅 비어 미완성으로 보였다.
+   본문은 화면 가운데에 두고, 고지는 바닥에 붙인다. */
+#title { padding-bottom: 0; }
+#title .wrap {
+  min-height: calc(100dvh - 66px);
+  display: flex; flex-direction: column;
+  padding-bottom: 18px;
+}
+.hero { padding-top: 0; display: flex; flex-direction: column; flex: 1; }
+.hero-tiles { padding-top: 0; margin-top: auto; margin-bottom: 26px; }
+.hero .primary { margin-bottom: 6px; }
+.hero .ghost { margin-bottom: 0; }
+.legal { margin-top: auto; padding-top: 30px; }
+/* 위아래 자동 여백이 공간을 반씩 나눠 본문이 가운데 오게 한다 */
+.hero .ghost { margin-bottom: 0; }
