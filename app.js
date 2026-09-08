@@ -40,7 +40,11 @@
     pushViews();
   }
 
-  var PREDICT_MS = 1000;     // 예측만 보여주는 시간
+  // 남의 예측은 "누가 · 누구의 · 몇 번째를 · 무엇으로" 네 가지를 읽어야 한다.
+  // 한글 짧은 문구는 0.8초 + 글자당 0.07초쯤 걸리므로 1.7초를 준다.
+  // 내가 부른 값은 내가 이미 아니까 기다릴 이유가 없다 — 짧게 끊는다.
+  var PREDICT_MS = 1700;     // 남의 예측을 읽는 시간
+  var PREDICT_MINE_MS = 650; // 내가 부른 값 — 결과로 바로 넘어간다
   var VERDICT_MS = 1500;     // 결과를 띄워두는 시간
 
   function pushViews() {
@@ -61,7 +65,8 @@
     if (fresh && ev.type === 'guess' && App.view) {
       App.shownEvent = key;
       App.heldView = nv;
-      App.holdUntil = Date.now() + PREDICT_MS;
+      var wait = (ev.by === nv.me) ? PREDICT_MINE_MS : PREDICT_MS;
+      App.holdUntil = Date.now() + wait;
       announce(ev, false);
       App.animateEv = null;
       render();                                  // 이전 판을 그대로 둔다
@@ -72,7 +77,7 @@
         announce(ev, true);
         render();
         scheduleBot();
-      }, PREDICT_MS);
+      }, wait);
       scheduleBot();
       return;
     }
@@ -483,40 +488,44 @@
     (v.log || []).forEach(function (line) { log.appendChild(el('div', null, line)); });
 
     var nb = $('nowband'), nl = nowLine(v);
-    $('nowText').textContent = nl.text;
+    $('nowWho').textContent = nl.who;
+    $('nowWhat').textContent = nl.what;
     nb.classList.toggle('mine', nl.mine);
 
     if (v.phase === 'over') showOver(v);
     App.animateEv = null;
   }
 
-  // 지금 무슨 일이 벌어지는가 — 판 위쪽 띠에 한 줄로.
-  // 남의 차례에도 "무엇을 기다리는지"가 보여야 판이 멈춘 것처럼 보이지 않는다.
+  // 지금 무슨 일이 벌어지는가 — 판 위쪽 띠에.
+  // 이름과 상태를 따로 둔다. 한 사람의 차례가 이어지는 동안 이름은 그대로 있고
+  // 뒤쪽 짧은 말만 바뀌므로, 한 줄이 통째로 갈리지 않아 눈이 따라갈 수 있다.
   function nowLine(v) {
     var cur = v.players[v.turn];
-    var mine = cur && cur.id === v.me;
-    var who = mine ? '내 차례' : (cur ? cur.name + '의 차례' : '');
+    var mine = !!(cur && cur.id === v.me);
 
-    if (v.phase === 'over') return { text: '판이 끝났습니다', mine: false };
+    if (v.phase === 'over') return { who: '', what: '판이 끝났습니다', mine: false };
     if (v.phase === 'setup') {
       var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
       var total = v.players.filter(function (p) { return !p.out; }).length;
       if (!v.ready[v.me]) {
         var meP = myPlayer(v);
         var need = v.handSize - (meP ? meP.hand.length : 0);
-        return { text: need > 0 ? '시작 손패를 고르는 중 — ' + need + '장 더' : '자리를 정하고 준비를 누르세요', mine: true };
+        return { who: '손패 정리', mine: true,
+                 what: need > 0 ? '바닥에서 ' + need + '장 더' : '자리를 정하고 준비를 누르세요' };
       }
-      return { text: '다른 사람이 손패를 정리하는 중 — 준비 ' + done + '/' + total, mine: false };
+      return { who: '손패 정리', what: '준비 ' + done + '/' + total, mine: false };
     }
 
-    var what = {
-      draw:    mine ? '바닥에서 한 장 고르세요' : '바닥에서 한 장 집는 중',
-      place:   mine ? '집은 타일을 놓을 자리를 고르세요' : '집은 타일을 놓는 중',
-      guess:   mine ? '상대의 덮인 타일을 지목하세요' : '누구를 맞힐지 고르는 중',
-      decide:  mine ? '한 번 더 맞힐지 고르세요' : '이어서 맞힐지 고민하는 중',
-      penalty: mine ? '내 타일 하나를 공개해야 합니다' : '자기 타일을 공개하는 중'
-    }[v.phase] || '';
-    return { text: who + (what ? ' — ' + what : ''), mine: !!mine };
+    // 남의 차례에는 짧게 — 1초 남짓 떠 있다가 바뀌므로 길면 못 읽는다.
+    // 내 차례에는 무엇을 해야 하는지 또렷하게 — 판이 나를 기다리므로 길어도 된다.
+    var what = mine
+      ? { draw: '바닥에서 한 장 고르세요', place: '놓을 자리를 고르세요',
+          guess: '상대의 덮인 타일을 지목하세요', decide: '한 번 더 맞힐지 고르세요',
+          penalty: '내 타일 하나를 공개하세요' }[v.phase]
+      : { draw: '집는 중', place: '놓는 중', guess: '지목하는 중',
+          decide: '고민하는 중', penalty: '공개하는 중' }[v.phase];
+
+    return { who: mine ? '내 차례' : (cur ? cur.name : ''), what: what || '', mine: mine };
   }
 
   function indexOfMe(v) {

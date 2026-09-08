@@ -643,3 +643,12 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 .legal { margin-top: auto; padding-top: 30px; }
 /* 위아래 자동 여백이 공간을 반씩 나눠 본문이 가운데 오게 한다 */
 .hero .ghost { margin-bottom: 0; }
+
+/* 상황 띠 — 이름과 상태를 나눈다.
+   한 사람의 차례가 이어지는 동안 이름은 그대로 있고 뒤쪽 말만 바뀐다. */
+.nb-who { font-weight: 800; }
+.nb-who:not(:empty) + .nb-what:not(:empty)::before {
+  content: '·'; margin: 0 7px; opacity: .45; font-weight: 400;
+}
+.nb-what { font-weight: 600; opacity: .82; }
+.nowband.mine .nb-what { opacity: 1; }
