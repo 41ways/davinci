@@ -484,3 +484,62 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 
 /* 저작권 고지 — 타이틀 아래, 자세히 봐야 보일 만큼만 */
 .legal{margin:26px auto 0;max-width:36em;font-size:10.5px;line-height:1.75;color:var(--faint);opacity:.7;text-align:center;word-break:keep-all}
+
+/* ════════════════ 상판 ════════════════
+   판이 밝은 회색 위에 그냥 얹혀 있었다. 결이 있는 상판 위로 옮긴다.
+   검정 타일과 흰 타일이 모두 또렷하도록 중간 밝기로 잡았다. */
+#game {
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(130% 62% at 50% -8%, rgba(255,255,255,.9), transparent 60%),
+    linear-gradient(180deg, #eef0f4 0%, #e7eaef 48%, #e1e4ea 100%);
+}
+.table {
+  position: relative;
+  flex: 1 0 auto;
+  max-width: min(900px, calc(100% - 16px));
+  margin-top: 10px; margin-bottom: 16px;
+  border-radius: 20px;
+  /* 리넨 결 — 두 방향으로 아주 옅게 */
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.5) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(0deg,  rgba(30,40,55,.026) 0 1px, transparent 1px 4px),
+    radial-gradient(125% 85% at 50% 0%, #f4f6f9, #e6e9ef 68%, #dfe3e9);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.95),
+    inset 0 0 0 1px rgba(211,216,224,.85),
+    inset 0 -20px 44px -26px rgba(30,40,55,.34),
+    0 12px 34px -20px rgba(30,40,55,.42);
+}
+@media (max-width: 640px) { .table { border-radius: 14px; } }
+
+/* ── 상황 띠 ──
+   위쪽 여백은 예측 알림이 뜨는 자리다. 알림이 없는 동안에는
+   "지금 무슨 일이 벌어지는가"를 대신 보여 준다. 비워 두면 미완성으로 보인다. */
+.nowband {
+  position: absolute; left: 14px; right: 14px; top: 20px; height: 46px;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  font-size: 13px; font-weight: 700; color: var(--dim);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.32));
+  border: 1px solid rgba(211,216,224,.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95);
+  transition: opacity .18s ease;
+  padding: 0 16px; text-align: center;
+}
+.nowband.mine {
+  color: var(--accent);
+  border-color: rgba(47,79,122,.32);
+  background: linear-gradient(180deg, #f6faff, #e9f1fa);
+}
+/* 알림이 뜨는 동안에는 뒤로 물러난다 — 두 개가 겹쳐 읽히지 않게 */
+.nowband.behind { opacity: 0; }
+.nb-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: currentColor; opacity: .5;
+  animation: blip 1.4s ease-in-out infinite;
+}
+.nowband.mine .nb-dot { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .nb-dot { animation: none; } }
+@media (max-width: 560px) { .nowband { font-size: 12px; height: 42px; } }
