@@ -729,3 +729,11 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 @media (max-width: 560px) {
   .chat { top: 56px; bottom: auto; height: min(46vh, 330px); left: 12px; right: 12px; width: auto; }
 }
+
+/* 예측을 띄워 두는 동안 — 판은 이전 상태이고 진짜 상태는 이미 넘어가 있다.
+   이때 누르면 옛 화면 기준으로 명령이 나가 거부되므로, 눌리지 않게 막는다.
+   커서까지 바꿔서 "지금은 기다리는 중"이 손끝에도 전해지게 한다. */
+body.holding .table,
+body.holding #panel { pointer-events: none; }
+body.holding .tile.pick,
+body.holding .slot { cursor: default; }

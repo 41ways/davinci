@@ -76,10 +76,14 @@
         : readMs($('announce').textContent, PREDICT_MIN_MS);
       App.holdUntil = Date.now() + wait;
       App.animateEv = null;
+      // 이 동안 판은 이전 상태를 보여 주지만 진짜 상태는 이미 넘어가 있다.
+      // 눌러도 옛 화면 기준으로 명령이 나가 거부되므로, 아예 누를 수 없게 막는다.
+      document.body.classList.add('holding');
       render();                                  // 이전 판을 그대로 둔다
       clearTimeout(App.holdTimer);
       App.holdTimer = setTimeout(function () {
         App.view = App.heldView; App.heldView = null; App.holdUntil = 0;
+        document.body.classList.remove('holding');
         App.animateEv = ev;                      // 부서짐 / 흔들림 연출
         announce(ev, true);
         render();
@@ -172,7 +176,18 @@
     pushViews();
   }
 
+  // 바닥에서 집는 동작은 누른 자리(index)로 보낸다.
+  // 한 번 집으면 판이 곧바로 다시 그려지므로, 이어진 두 번째 클릭은
+  // 그 자리에 새로 온 다른 타일을 집어 버린다. 사람은 더블클릭을 한다.
+  var PICK_LOCK_MS = 260;
+  var pickLockUntil = 0;
+
   function act(action, args) {
+    if (action === 'draftPick' || action === 'draw') {
+      var now = Date.now();
+      if (now < pickLockUntil) return;          // 연타로 두 장 집히는 것 막기
+      pickLockUntil = now + PICK_LOCK_MS;
+    }
     if (App.mode === 'client') { App.net.toHost({ t: 'act', action: action, args: args }); return; }
     doAction(App.me, action, args);
   }
