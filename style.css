@@ -252,8 +252,12 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 .tile.big.joker { font-size: 44px; }
 
 .tile.pick { cursor: pointer; }
-.tile.pick:hover { transform: translateY(-5px); box-shadow: 0 4px 0 var(--tb-edge), 0 12px 20px rgba(30,40,55,.24); }
-.tile.w.pick:hover { box-shadow: 0 4px 0 var(--tw-edge), 0 12px 20px rgba(30,40,55,.24); }
+/* 손가락으로 만지는 기기에서는 :hover 가 탭 뒤에도 남아 타일이 들린 채로 굳는다.
+   마우스가 있는 기기에서만 들어 올린다. */
+@media (hover: hover) {
+  .tile.pick:hover { transform: translateY(-5px); box-shadow: 0 4px 0 var(--tb-edge), 0 12px 20px rgba(30,40,55,.24); }
+  .tile.w.pick:hover { box-shadow: 0 4px 0 var(--tw-edge), 0 12px 20px rgba(30,40,55,.24); }
+}
 .tile.sel { outline: 3px solid var(--accent); outline-offset: 3px; }
 .tile.arranging {
   outline: 3px solid var(--accent); outline-offset: 3px;
@@ -327,7 +331,7 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 .floor .pile .tile.joker { font-size: 22px; }
 .floor .pile .tile::after { font-size: 13px; }
 .floor.can .pile .tile { cursor: pointer; }
-.floor.can .pile .tile:hover { transform: translateY(-6px); }
+@media (hover: hover) { .floor.can .pile .tile:hover { transform: translateY(-6px); } }
 .drawn-box { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .drawn-box span { font-size: 10.5px; color: var(--dim); letter-spacing: .08em; font-weight: 600; }
 
@@ -340,7 +344,7 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 }
 .slot.big { height: 84px; width: 20px; }
 .slot.ok { border-color: var(--accent); background: var(--accent-soft); }
-.slot:hover { background: rgba(47,79,122,.30); border-color: var(--accent); }
+@media (hover: hover) { .slot:hover { background: rgba(47,79,122,.30); border-color: var(--accent); } }
 
 /* ---------- 액션 패널 ---------- */
 #panel { margin-top: 14px; }
@@ -617,7 +621,7 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 .floor .pile .tile:nth-child(3n)   { rotate: -1.6deg; }
 .floor .pile .tile:nth-child(3n+1) { rotate:  1.3deg; }
 .floor .pile .tile:nth-child(4n)   { rotate:  2.1deg; }
-.floor.can .pile .tile:hover { rotate: 0deg; z-index: 2; }
+@media (hover: hover) { .floor.can .pile .tile:hover { rotate: 0deg; z-index: 2; } }
 
 /* 집은 타일은 트레이 밖으로 한 단 올라온다 */
 .drawn-box {
