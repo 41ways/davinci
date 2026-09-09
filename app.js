@@ -16,6 +16,11 @@
   function show(which) {
     SCREENS.forEach(function (id) { $(id).classList.toggle('hidden', id !== which); });
     window.scrollTo(0, 0);
+    // 멈춤 표시가 화면 전환 중에 남으면 판이 영영 안 눌린다.
+    // (연출 도중에 방장과 끊겨 메뉴로 튕기는 경우)
+    clearTimeout(App.holdTimer);
+    App.holdTimer = null; App.heldView = null; App.holdUntil = 0;
+    document.body.classList.remove('holding');
   }
   var toastTimer = null;
   function toast(msg) {
