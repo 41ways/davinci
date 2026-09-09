@@ -41,11 +41,16 @@
   }
 
   // 남의 예측은 "누가 · 누구의 · 몇 번째를 · 무엇으로" 네 가지를 읽어야 한다.
-  // 한글 짧은 문구는 0.8초 + 글자당 0.07초쯤 걸리므로 1.7초를 준다.
-  // 내가 부른 값은 내가 이미 아니까 기다릴 이유가 없다 — 짧게 끊는다.
-  var PREDICT_MS = 1700;     // 남의 예측을 읽는 시간
-  var PREDICT_MINE_MS = 650; // 내가 부른 값 — 결과로 바로 넘어간다
-  var VERDICT_MS = 1500;     // 결과를 띄워두는 시간
+  // 한글 짧은 문구는 눈에 들어오는 데 0.8초 + 글자당 0.07초쯤 걸린다.
+  // 시간을 상수로 박아 두면 이름이 길거나 자릿수가 두 자리일 때 모자라므로,
+  // 실제로 띄운 글자 수를 세서 그만큼 붙잡아 둔다. (qa/pace.py 가 이 기준으로 검사한다)
+  var PREDICT_MINE_MS = 650;  // 내가 부른 값 — 내가 아는 것이라 결과로 바로 넘어간다
+  var PREDICT_MIN_MS = 1400;  // 남의 예측 최소
+  var VERDICT_MIN_MS = 1500;  // 결과 최소
+  function readMs(text, floor) {
+    var n = String(text || '').replace(/\s/g, '').length;
+    return Math.max(floor, 800 + n * 70);
+  }
 
   function pushViews() {
     var s = App.state;
@@ -65,9 +70,11 @@
     if (fresh && ev.type === 'guess' && App.view) {
       App.shownEvent = key;
       App.heldView = nv;
-      var wait = (ev.by === nv.me) ? PREDICT_MINE_MS : PREDICT_MS;
-      App.holdUntil = Date.now() + wait;
       announce(ev, false);
+      var wait = (ev.by === nv.me)
+        ? PREDICT_MINE_MS
+        : readMs($('announce').textContent, PREDICT_MIN_MS);
+      App.holdUntil = Date.now() + wait;
       App.animateEv = null;
       render();                                  // 이전 판을 그대로 둔다
       clearTimeout(App.holdTimer);
@@ -106,7 +113,7 @@
       App.announceTimer = setTimeout(function () {
         box.className = 'announce';
         $('nowband').classList.remove('behind');
-      }, VERDICT_MS);
+      }, readMs(box.textContent, VERDICT_MIN_MS));
     }
   }
 
@@ -122,7 +129,10 @@
       return;
     }
     var seat = seatOf(R.current(s).id);
-    if (seat && seat.bot) App.botTimer = setTimeout(botStep, 900);
+    // 무엇을 부를지 고르는 대목과 자기 타일을 스스로 까는 대목은 이 게임의 긴장이다.
+    // 그때는 뜸을 들이고, 나머지(집기·놓기)는 기계적인 동작이라 빠르게 넘긴다.
+    var think = (s.phase === 'guess' || s.phase === 'penalty') ? 1350 : 1100;
+    if (seat && seat.bot) App.botTimer = setTimeout(botStep, think);
   }
 
   function botSetupStep() {
