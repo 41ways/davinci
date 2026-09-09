@@ -93,6 +93,14 @@
       return;
     }
 
+    // 멈춰 두는 동안 더 새로운 상태가 오면, 붙잡고 있던 옛 판은 버린다.
+    // 안 그러면 나중에 타이머가 옛 판을 도로 덮어써서 판이 뒤로 튄다.
+    if (App.holdTimer) {
+      clearTimeout(App.holdTimer);
+      App.holdTimer = null; App.heldView = null; App.holdUntil = 0;
+      document.body.classList.remove('holding');
+    }
+
     App.view = nv;
     App.shownEvent = fresh ? key : App.shownEvent;
     App.animateEv = fresh ? ev : null;
@@ -135,7 +143,9 @@
     var seat = seatOf(R.current(s).id);
     // 무엇을 부를지 고르는 대목과 자기 타일을 스스로 까는 대목은 이 게임의 긴장이다.
     // 그때는 뜸을 들이고, 나머지(집기·놓기)는 기계적인 동작이라 빠르게 넘긴다.
-    var think = (s.phase === 'guess' || s.phase === 'penalty') ? 1350 : 1100;
+    // 무엇을 부를지 · 한 번 더 갈지 · 자기 타일을 스스로 까는 대목이 이 게임의 긴장이다.
+    // 그때는 뜸을 들이고, 기계적인 동작(집기·놓기)은 빠르게 넘긴다.
+    var think = (s.phase === 'guess' || s.phase === 'penalty' || s.phase === 'decide') ? 1350 : 1100;
     if (seat && seat.bot) App.botTimer = setTimeout(botStep, think);
   }
 
