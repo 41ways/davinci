@@ -15,6 +15,7 @@ function begin(s, rng){
     if (jk >= 0) R.setupMove(s, p.id, jk, Math.floor(rng() * p.hand.length));
     R.setupReady(s, p.id);
   });
+  if (s.phase === 'order') R.beginPlay(s);   // 선공 발표를 건너뛰고 바로 판으로
   return s;
 }
 
