@@ -39,6 +39,11 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* hidden 속성은 브라우저 기본 규칙(display:none)으로 동작하는데,
+   클래스에 display 가 선언돼 있으면 특이도에 밀려 무시된다.
+   실제로 .chat 이 display:flex 라서 채팅창이 안 닫혔다. */
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   background: var(--bg); color: var(--ink);
