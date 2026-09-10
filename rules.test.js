@@ -28,6 +28,8 @@ function begin(s){
     while (p.hand.length < s.handSize) R.draftPick(s, p.id, 0);
     R.setupReady(s, p.id);
   });
+  if (s.phase === 'order') R.beginPlay(s);
+  s.turn = 0;              // 선공은 무작위지만, 이후 테스트는 p0 기준으로 고정해 본다
   return s;
 }
 function firstHidden(p){ for(var i=0;i<p.hand.length;i++) if(!p.hand[i].faceUp) return i; return -1; }
@@ -104,7 +106,12 @@ section('시작 손패 정리');
   R.setupReady(st, st.players[1].id);
   ok('두 명만으로도 아직', st.phase === 'setup');
   R.setupReady(st, st.players[2].id);
-  ok('모두 준비하면 시작', st.phase === 'draw');
+  ok('모두 준비하면 순서 정하기로', st.phase === 'order');
+  ok('선공이 정해진다', !!st.firstId && st.players.some(function(p){ return p.id === st.firstId; }));
+  ok('선공에게 차례가 가 있다', R.current(st).id === st.firstId);
+  ok('순서 단계에선 못 집는다', R.draw(st, st.firstId, 0).ok === false);
+  ok('발표 후 시작', (R.beginPlay(st).ok && st.phase === 'draw'));
+  ok('중복 시작 거부', R.beginPlay(st).ok === false);
   ok('준비 끝나면 이동 거부', R.setupMove(st, who.id, 0, 1).ok === false);
 })();
 
@@ -294,6 +301,7 @@ ok('바닥은 색만', v1.pool.length === s6.pool.length && v1.pool.every(functi
 /* ---------------- 무작위 완주 ---------------- */
 section('무작위 완주 500판');
 function randomAction(s, rng) {
+  if (s.phase === 'order') return R.beginPlay(s);
   if (s.phase === 'setup') {
     var p0 = s.players.filter(function(p){ return !s.ready[p.id]; })[0];
     if (p0.hand.length < s.handSize) return R.draftPick(s, p0.id, Math.floor(rng() * s.pool.length));

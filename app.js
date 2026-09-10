@@ -134,10 +134,17 @@
     }
   }
 
+  var ORDER_MS = 2800;       // 선공을 보여주는 시간
+
   function scheduleBot() {
     clearTimeout(App.botTimer);
     var s = App.state;
     if (!s || s.phase === 'over') return;
+    if (s.phase === 'order') {
+      // 선공을 보여주고 나서 시작한다. 뚝 시작하지 않게.
+      App.botTimer = setTimeout(function () { R.beginPlay(s); pushViews(); }, ORDER_MS);
+      return;
+    }
     var hold = App.holdUntil - Date.now();
     if (hold > 0) { App.botTimer = setTimeout(scheduleBot, hold + 60); return; }
     if (s.phase === 'setup') {
@@ -260,7 +267,7 @@
     var ev = App.animateEv;
     if (ev && ev.type === 'guess' && ev.targetId === p.id && ev.index === i) {
       e.classList.add(ev.hit ? 'smash' : 'shake');   // 값은 큰 알림으로 따로 보여준다
-    } else if (ev && ev.type === 'placed' && ev.by === p.id && ev.index === i) {
+    } else if (ev && (ev.type === 'placed' || ev.type === 'draft') && ev.by === p.id && ev.index === i) {
       e.classList.add('inserted');
     }
 
@@ -483,7 +490,10 @@
     var v = App.view;
     if (!v) return;
 
-    if (App.animateEv && App.animateEv.type === 'guess') flashVerdict(App.animateEv);
+    if (App.animateEv) {
+      if (App.animateEv.type === 'guess') flashBig(App.animateEv.hit ? '적중' : '빗나감', App.animateEv.hit ? 'hit' : 'miss');
+      else if (App.animateEv.type === 'begin') flashBig('시작', 'go');
+    }
 
     var cur = v.players[v.turn];
     if (v.phase === 'setup') {
@@ -524,9 +534,6 @@
 
     renderPanel(v);
 
-    var log = $('log'); log.innerHTML = '';
-    (v.log || []).forEach(function (line) { log.appendChild(el('div', null, line)); });
-
     syncChatVisible();
     var nb = $('nowband'), nl = nowLine(v);
     $('nowWho').textContent = nl.who;
@@ -545,6 +552,12 @@
     var mine = !!(cur && cur.id === v.me);
 
     if (v.phase === 'over') return { who: '', what: '판이 끝났습니다', mine: false };
+    if (v.phase === 'order') {
+      var f = null;
+      v.players.forEach(function (p) { if (p.id === v.firstId) f = p; });
+      return { who: '순서 정하기', mine: !!(f && f.id === v.me),
+               what: f ? (f.id === v.me ? '내가 선공입니다' : f.name + ' 선공') : '' };
+    }
     if (v.phase === 'setup') {
       var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
       var total = v.players.filter(function (p) { return !p.out; }).length;
@@ -574,8 +587,8 @@
     return 0;
   }
 
-  function flashVerdict(ev) {
-    var f = el('div', 'hitflag ' + (ev.hit ? 'hit' : 'miss'), ev.hit ? '적중' : '빗나감');
+  function flashBig(text, cls) {
+    var f = el('div', 'hitflag ' + cls, text);
     document.body.appendChild(f);
     setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 1200);
   }
@@ -608,6 +621,17 @@
       rb.onclick = function () { act('setupReady', []); };
       sp.appendChild(rb);
       panel.appendChild(sp);
+      return;
+    }
+
+    if (v.phase === 'order') {
+      var f = null;
+      v.players.forEach(function (p) { if (p.id === v.firstId) f = p; });
+      var op = el('div', 'pnl');
+      op.appendChild(el('div', 'ask', f
+        ? (f.id === v.me ? '선공은 나입니다. 곧 시작합니다.' : '선공은 ' + f.name + '. 곧 시작합니다.')
+        : '곧 시작합니다.'));
+      panel.appendChild(op);
       return;
     }
 
@@ -713,7 +737,36 @@
     $('overTitle').textContent = !win ? '무승부' : (win.id === v.me ? '승리' : win.name + ' 승리');
     $('overText').textContent = !win ? '남은 사람이 없습니다.'
       : (win.id === v.me ? '끝까지 숫자를 지켰습니다.' : '다음 판에 설욕하세요.');
+    $('btnAgain').textContent = App.mode === 'solo' ? '다시하기' : '대기방으로';
     $('over').classList.remove('hidden');
+  }
+
+  // 판이 끝나면 처음으로 나가지 않고 대기방으로 돌아간다. 바로 다시 시작할 수 있게.
+  function backToLobby() {
+    $('over').classList.add('hidden');
+    clearTimeout(App.botTimer); clearTimeout(App.holdTimer); clearTimeout(App.announceTimer);
+    $('announce').className = 'announce';
+    $('nowband').classList.remove('behind');
+    document.body.classList.remove('holding');
+    App.state = null; App.view = null; App.heldView = null;
+    App.started = false; App.sel = null; App.setupSelColor = null;
+    App.shownEvent = null; App.animateEv = null; App.holdUntil = 0; App.holdTimer = null;
+
+    if (App.mode === 'solo') { show('menu'); return; }
+    if (App.mode === 'host') {
+      // 나간 사람은 자리에서 빼고, 남은 사람과 봇으로 다시 시작할 수 있게 한다
+      App.seats = App.seats.filter(function (st) {
+        return st.id === 'host' || st.bot || (App.net && App.net.conns[st.id]);
+      });
+      show('lobby');
+      $('lobbyHint').textContent = '친구에게 이 코드를 알려주세요.';
+      renderSeats(App.seats, true);
+      broadcastLobby();
+      if (App.net) App.net.broadcast(function () { return { t: 'toLobby' }; });
+      return;
+    }
+    show('lobby');
+    $('lobbyHint').textContent = '방장이 다시 시작하기를 기다리는 중…';
   }
 
   /* ---------------- 대기실 ---------------- */
@@ -808,7 +861,8 @@
       show('lobby'); renderSeats([], false);
     };
     App.net.on.data = function (_, msg) {
-      if (msg.t === 'lobby') {
+      if (msg.t === 'toLobby') { backToLobby(); }
+      else if (msg.t === 'lobby') {
         // 참가자는 자리 목록을 여기서만 받는다. 기억해 두지 않으면
         // 판이 시작된 뒤 사람 수를 셀 수 없어 채팅이 사라져 버린다.
         App.seats = msg.seats || [];
@@ -859,7 +913,7 @@
   };
   $('btnStart').onclick = function () { startEngine(); };
   $('btnLeave').onclick = function () { if (App.net) App.net.close(); location.reload(); };
-  $('btnAgain').onclick = function () { if (App.net) App.net.close(); location.reload(); };
+  $('btnAgain').onclick = backToLobby;
   $('hint').onchange = function () { render(); };
   $('name').value = localStorage.getItem('davinci.name') || '';
   $('name').addEventListener('change', function () { localStorage.setItem('davinci.name', myName()); });

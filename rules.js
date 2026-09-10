@@ -95,7 +95,8 @@
       players: ps, pool: pool, turn: 0,
       handSize: size,
       ready: {},            // 시작 정리를 마친 사람
-      phase: 'setup',       // setup | draw | guess | decide | place | penalty | over
+      firstId: null,        // 선공
+      phase: 'setup',       // setup | order | draw | guess | decide | place | penalty | over
       drawn: null,
       pending: null,        // {tile, faceUp} 놓을 자리를 고르는 중
       winner: null, lastEvent: null, log: []
@@ -161,7 +162,7 @@
     // 조커는 일단 아무 자리에 두고, 본인이 옮길 수 있게 한다
     var at = isJoker(t) ? spots[Math.floor(Math.random() * spots.length)] : spots[0];
     me.hand.splice(at, 0, { tile: t, faceUp: false });
-    s.lastEvent = { type: 'draft', by: pid };
+    s.lastEvent = { type: 'draft', by: pid, index: at, left: s.handSize - me.hand.length };
     return { ok: true };
   }
 
@@ -193,10 +194,22 @@
 
     var waiting = s.players.filter(function (p) { return !p.out && !s.ready[p.id]; });
     if (!waiting.length) {
-      s.phase = 'draw';
-      s.lastEvent = { type: 'begin' };
-      say(s, '모두 준비 완료 — 시작합니다');
+      var alive = alivePlayers(s);
+      var first = alive[Math.floor(Math.random() * alive.length)];
+      for (var i = 0; i < s.players.length; i++) if (s.players[i].id === first.id) s.turn = i;
+      s.firstId = first.id;
+      s.phase = 'order';
+      s.lastEvent = { type: 'order', firstId: first.id, firstName: first.name };
+      say(s, '선공은 ' + first.name);
     }
+    return { ok: true };
+  }
+
+  // 순서 발표가 끝나면 판을 시작한다 (방장이 시간 맞춰 호출)
+  function beginPlay(s) {
+    if (s.phase !== 'order') return { ok: false, error: '지금 시작할 수 없습니다' };
+    s.phase = 'draw';
+    s.lastEvent = { type: 'begin' };
     return { ok: true };
   }
 
@@ -321,7 +334,7 @@
     var cur = current(s);
     var isCur = s.phase !== 'over' && cur && cur.id === pid;
     return {
-      phase: s.phase, turn: s.turn, winner: s.winner, me: pid,
+      phase: s.phase, turn: s.turn, winner: s.winner, me: pid, firstId: s.firstId,
       ready: JSON.parse(JSON.stringify(s.ready || {})),
       myJokers: (function () {
         var me = null, out = [];
@@ -377,6 +390,7 @@
     validPlacements: validPlacements, hiddenCount: hiddenCount,
     alivePlayers: alivePlayers, current: current,
     newGame: newGame, draftPick: draftPick, setupMove: setupMove, setupReady: setupReady,
+    beginPlay: beginPlay,
     draw: draw, guess: guess, decide: decide, place: place, penalty: penalty,
     viewFor: viewFor, unseenTiles: unseenTiles
   };

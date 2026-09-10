@@ -746,3 +746,44 @@ body.holding .table,
 body.holding #panel { pointer-events: none; }
 body.holding .tile.pick,
 body.holding .slot { cursor: default; }
+
+/* ---------- 세로 줄이기 ----------
+   1280x800 에서 스크롤 없이 한 화면에 들어오도록 각 덩어리를 깎는다. */
+.player { padding: 9px; }
+.player.mine { padding: 12px; }
+.phead { margin-bottom: 7px; }
+.hand { gap: 6px; }
+.cell:not(.me) .tile { --tilew: 42px; --tileh: 58px; font-size: 20px; }
+.cell:not(.me) .tile.joker { font-size: 30px; }
+.cell:not(.me) .tile.down::after { font-size: 17px; }
+
+/* 작음/큼 표시는 남기되 납작하게 */
+.dir { margin-top: 5px; font-size: 8.5px; }
+.mine .dir { font-size: 9.5px; margin-top: 7px; }
+
+.floor h3 { margin-bottom: 7px; }
+.floor .pile { gap: 5px; }
+.floor .pile .tile { --tilew: 26px; --tileh: 36px; font-size: 12px; }
+.floor .pile .tile.joker { font-size: 19px; }
+.floor .pile .tile::after { font-size: 12px; }
+.drawn-box { margin-top: 9px; gap: 4px; }
+
+/* ---------- 내 패: 살아 있는 것과 죽은 것 ----------
+   내 손패에서 아직 안 들킨 패와 이미 까인 패가 한눈에 갈라져야 한다. */
+.mine .tile.own {
+  border-style: solid; border-color: var(--accent);
+  box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift);
+}
+.mine .tile.w.own { box-shadow: 0 4px 0 var(--tw-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift); }
+.mine .tile.up {
+  filter: grayscale(.85) saturate(.3) brightness(.94);
+  opacity: .62;
+}
+
+/* ---------- 시작 알림 ---------- */
+.hitflag.go { color: var(--accent); text-shadow: 0 8px 34px rgba(42,111,224,.4), 0 2px 0 rgba(255,255,255,.6); }
+
+/* ---------- 시작 손패 고르기를 눈에 띄게 ---------- */
+.floor.can h3 { color: var(--accent); font-size: 12px; }
+.floor.can .pile .tile { box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift); }
+.floor.can .pile .tile.w { box-shadow: 0 4px 0 var(--tw-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift); }
