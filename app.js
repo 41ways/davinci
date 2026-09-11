@@ -20,9 +20,11 @@
     // (연출 도중에 방장과 끊겨 메뉴로 튕기는 경우)
     clearTimeout(App.holdTimer);
     App.holdTimer = null; App.heldView = null; App.holdUntil = 0;
+    clearTimeout(App.drainTimer); App.drainTimer = null; App.queue = [];
     document.body.classList.remove('holding');
     // 결과판·예측 상자는 화면 밖에 떠 있는 것이라 화면을 바꿔도 남는다.
     // 판이 끝난 뒤 방장이 나가 메뉴로 튕기면 메뉴 위에 결과판이 그대로 덮여 있었다.
+    if (which === 'title' || which === 'menu' || which === 'guide') { $('chatBtn').hidden = true; $('chat').hidden = true; }
     if (which !== 'game') {
       $('over').classList.add('hidden');
       clearTimeout(App.announceTimer);
@@ -76,7 +78,16 @@
 
   // 추측이 들어오면 '예측'을 먼저 크게 띄우고 판은 이전 상태로 잠시 멈춘다.
   // 1초 뒤에 실제 결과를 반영한다. 그래야 결과가 미리 새어나가지 않는다.
+  //
+  // 예측·결과를 띄워 두는 동안 들어온 상태는 줄을 세웠다가 차례로 보여 준다.
+  // (맞힌 사람이 곧바로 다음 추측을 하면 첫 결과가 덮여 사라지고, 판도 두 칸 건너뛰었다.)
+  App.queue = [];
+  function busy() { return !!App.heldView || !!App.drainTimer; }
+
   function applyView(nv) {
+    if (busy()) { App.queue.push(nv); return; }
+    // 차례나 단계가 바뀌면 고르던 대상을 푼다 — 참가자는 doAction 을 거치지 않아 다음 차례까지 남았다
+    if (App.view && (App.view.turn !== nv.turn || App.view.phase !== nv.phase)) App.sel = null;
     var ev = nv.lastEvent, key = eventKey(ev);
     var fresh = !!key && key !== App.shownEvent;
 
@@ -102,18 +113,9 @@
         announce(ev, true);
         render();
         scheduleBot();
+        drainQueue();
       }, wait);
       scheduleBot();
-      return;
-    }
-
-    // 예측을 띄워 두는 동안 새 상태가 오면(맞힌 사람이 곧바로 '이어서'를 누른 경우,
-    // 누가 나간 경우) 붙잡아 둔 판만 최신으로 바꾸고 결과 발표는 그대로 기다린다.
-    // 여기서 발표를 끊어 버리면 다른 사람 화면에 "예측" 상자만 남고 적중·빗나감이 영영 안 뜬다.
-    // (옛 판을 붙잡은 채로 두면 나중에 타이머가 판을 뒤로 되돌리므로 최신 판으로 바꿔 둔다.)
-    if (App.heldView) {
-      App.heldView = nv;
-      if (fresh) App.shownEvent = key;
       return;
     }
 
@@ -122,6 +124,26 @@
     App.animateEv = fresh ? ev : null;
     render();
     scheduleBot();
+  }
+
+  // 줄 선 상태를 차례로 — 다음 추측은 방금 뜬 결과를 읽을 틈을 준 뒤에, 나머지는 곧바로
+  function drainQueue() {
+    while (App.queue.length && !busy()) {
+      var q = App.queue[0], qev = q.lastEvent, qkey = eventKey(qev);
+      if (qkey && qkey !== App.shownEvent && qev.type === 'guess') {
+        App.queue.shift();
+        var gap = readMs($('announce').textContent, VERDICT_MIN_MS);
+        App.holdUntil = Date.now() + gap;        // 봇도 그만큼 기다리게
+        App.drainTimer = setTimeout(function () {
+          App.drainTimer = null;
+          applyView(q);
+          drainQueue();
+        }, gap);
+        return;
+      }
+      App.queue.shift();
+      applyView(q);
+    }
   }
 
   function announce(ev, withResult) {
@@ -278,7 +300,7 @@
     if (s.pool[idx] && s.pool[idx].color === color) return idx;
     var same = [];
     s.pool.forEach(function (t, i) { if (t.color === color) same.push(i); });
-    return same.length ? same[Math.floor(Math.random() * same.length)] : idx;
+    return same.length ? same[Math.floor(Math.random() * same.length)] : -1;   // 그 색이 동났다 — 다른 색을 주지 않는다
   }
 
   function doAction(pid, action, args) {
@@ -999,9 +1021,9 @@
     App.net.on.leave = function (pid) {
       var seat = seatOf(pid); if (!seat) return;
       App.seats = App.seats.filter(function (s) { return s.id !== pid; });
-      if (App.started && App.state) {
+      if (App.started && App.state && App.state.phase !== 'over') {
         R.dropPlayer(App.state, pid);            // 그 사람을 기다리며 판이 멈추지 않게
-        pushViews();
+        pushViews();                             // (끝난 판이면 보내지 않는다 — 대기방으로 간 사람을 결과로 끌어온다)
       } else { renderSeats(App.seats, true); broadcastLobby(); }
       toast(seat.name + ' 나감');
     };
@@ -1014,6 +1036,7 @@
 
   function beClient(code) {
     if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
+    App.view = null; App.shownEvent = null; App.sel = null;   // 지난 방의 표시 상태가 새 방 첫 알림을 가리지 않게
     chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
     App.mode = 'client';
     App.net = new Net();

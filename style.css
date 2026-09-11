@@ -341,7 +341,7 @@ button.ghost:hover { background: rgba(30,40,55,.05); }
 .drawn-box span { font-size: 10.5px; color: var(--dim); letter-spacing: .08em; font-weight: 600; }
 
 /* ---------- 놓을 자리 ---------- */
-.slots { display: flex; gap: 6px; justify-content: center; align-items: flex-start; margin-top: 4px; }
+.slots { display: flex; gap: 6px; justify-content: center; align-items: flex-start; margin-top: 4px; flex-wrap: wrap; }   /* 폰에서 줄이 화면 밖으로 밀리지 않게 */
 .slot {
   width: 16px; height: 64px; border-radius: 6px; flex: none; cursor: pointer;
   border: 1px dashed #cbbfa6; background: rgba(47,79,122,.06);
