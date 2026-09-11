@@ -297,7 +297,10 @@
     }
     if (current(s).id === pid) {
       // 집어 든 채 나갔으면 그 타일을 바닥에 돌려놓는다. nextTurn 이 drawn 을 비우면서 사라졌다.
-      if (s.drawn) { s.pool.push(s.drawn); s.drawn = null; }
+      [s.drawn, s.pending && s.pending.tile].forEach(function (t) {
+        if (t) s.pool.splice(Math.floor(Math.random() * (s.pool.length + 1)), 0, t);
+      });
+      s.drawn = null; s.pending = null;
       nextTurn(s);
     }
   }
@@ -339,7 +342,7 @@
     if (!slot) return { ok: false, error: '없는 자리입니다' };
     if (slot.faceUp) return { ok: false, error: '이미 공개된 타일입니다' };
     if (COLORS.indexOf(color) < 0) return { ok: false, error: '잘못된 색입니다' };
-    if (n !== null && !(n >= 0 && n <= MAX_N)) return { ok: false, error: '잘못된 숫자입니다' };
+    if (n !== null && !(Number.isInteger(n) && n >= 0 && n <= MAX_N)) return { ok: false, error: '잘못된 숫자입니다' };
 
     var hit = sameTile(slot.tile, color, n);
     var guessed = { color: color, n: n, joker: n === null };

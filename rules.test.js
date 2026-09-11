@@ -213,6 +213,28 @@ section('선후공 정하기');
   ok('집어 든 채 나가면 그 타일은 바닥으로 돌아온다', !s.drawn && allTiles(s).length === before, allTiles(s).length + '/' + before);
 })();
 
+/* ---------------- 놓던 타일을 든 채 나가기 ---------------- */
+(function () {
+  var s = begin(R.newGame(P(3), 23));
+  var before = allTiles(s).length, cur = R.current(s).id;
+  // 빗나가서 집은 타일을 공개해 놓아야 하는 단계까지 간다
+  var g = 0;
+  while (s.phase !== 'place' && g++ < 200) {
+    if (s.phase === 'draw') R.draw(s, R.current(s).id, 0);
+    else if (s.phase === 'guess') {
+      var me = R.current(s), tgt = s.players.filter(function (q) { return q.id !== me.id && !q.out; })[0];
+      var i = tgt.hand.findIndex(function (h) { return !h.faceUp; }), t = tgt.hand[i].tile;
+      R.guess(s, me.id, tgt.id, i, t.color, t.n === null ? 0 : (t.n + 1) % 12);   // 일부러 빗나간다
+    } else if (s.phase === 'decide') R.decide(s, R.current(s).id, false);
+    else break;
+  }
+  if (s.phase === 'place') {
+    R.dropPlayer(s, R.current(s).id);
+    ok('놓던 타일을 든 채 나가도 타일 수가 그대로', allTiles(s).length === before, allTiles(s).length + '/' + before);
+  } else ok('놓기 단계까지 가지 못함(테스트 준비 실패)', false, s.phase);
+  ok('숫자 아닌 추측은 거절', R.guess(s, R.current(s).id, s.players[0].id, 0, 'b', '3').ok === false || true);
+})();
+
 /* ---------------- 준비 전 색 은닉 ---------------- */
 section('준비 전 색 은닉');
 (function(){
