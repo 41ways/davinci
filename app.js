@@ -21,6 +21,14 @@
     clearTimeout(App.holdTimer);
     App.holdTimer = null; App.heldView = null; App.holdUntil = 0;
     document.body.classList.remove('holding');
+    // 결과판·예측 상자는 화면 밖에 떠 있는 것이라 화면을 바꿔도 남는다.
+    // 판이 끝난 뒤 방장이 나가 메뉴로 튕기면 메뉴 위에 결과판이 그대로 덮여 있었다.
+    if (which !== 'game') {
+      $('over').classList.add('hidden');
+      clearTimeout(App.announceTimer);
+      $('announce').className = 'announce';
+      $('nowband').classList.remove('behind');
+    }
   }
   var toastTimer = null;
   function toast(msg) {
@@ -87,6 +95,7 @@
       render();                                  // 이전 판을 그대로 둔다
       clearTimeout(App.holdTimer);
       App.holdTimer = setTimeout(function () {
+        App.holdTimer = null;
         App.view = App.heldView; App.heldView = null; App.holdUntil = 0;
         document.body.classList.remove('holding');
         App.animateEv = ev;                      // 부서짐 / 흔들림 연출
@@ -98,12 +107,14 @@
       return;
     }
 
-    // 멈춰 두는 동안 더 새로운 상태가 오면, 붙잡고 있던 옛 판은 버린다.
-    // 안 그러면 나중에 타이머가 옛 판을 도로 덮어써서 판이 뒤로 튄다.
-    if (App.holdTimer) {
-      clearTimeout(App.holdTimer);
-      App.holdTimer = null; App.heldView = null; App.holdUntil = 0;
-      document.body.classList.remove('holding');
+    // 예측을 띄워 두는 동안 새 상태가 오면(맞힌 사람이 곧바로 '이어서'를 누른 경우,
+    // 누가 나간 경우) 붙잡아 둔 판만 최신으로 바꾸고 결과 발표는 그대로 기다린다.
+    // 여기서 발표를 끊어 버리면 다른 사람 화면에 "예측" 상자만 남고 적중·빗나감이 영영 안 뜬다.
+    // (옛 판을 붙잡은 채로 두면 나중에 타이머가 판을 뒤로 되돌리므로 최신 판으로 바꿔 둔다.)
+    if (App.heldView) {
+      App.heldView = nv;
+      if (fresh) App.shownEvent = key;
+      return;
     }
 
     App.view = nv;
@@ -216,6 +227,18 @@
     }, wait);
   }
 
+  function anyGuess(s, id) {
+    for (var i = 0; i < s.players.length; i++) {
+      var p = s.players[i];
+      if (p.id === id || p.out) continue;
+      for (var j = 0; j < p.hand.length; j++) {
+        var h = p.hand[j];
+        if (!h.faceUp) return { targetId: p.id, index: j, color: h.tile.color, n: Math.floor(Math.random() * 12) };
+      }
+    }
+    return null;
+  }
+
   function botStep() {
     var s = App.state;
     if (!s || s.phase === 'over') return;
@@ -223,8 +246,8 @@
     if (s.phase === 'draw') R.draw(s, id, Math.floor(Math.random() * Math.max(1, s.pool.length)));
     else if (s.phase === 'guess') {
       var mv = AI.chooseGuess(v, Math.random, App.skill);
+      if (!mv) mv = anyGuess(s, id);             // 추론할 거리가 없어도 아무 덮인 타일이나 부른다
       if (mv) R.guess(s, id, mv.targetId, mv.index, mv.color, mv.n);
-      else R.decide(s, id, false);
     }
     else if (s.phase === 'decide') R.decide(s, id, AI.chooseDecide(v));
     else if (s.phase === 'place') R.place(s, id, AI.choosePlace(v));
@@ -248,15 +271,25 @@
     doAction(App.me, action, args);
   }
 
+  // 바닥 타일은 뒷면이라 사람은 사실상 '색'을 고른다. 자리 번호만 믿으면 그사이 다른 사람(봇은 0.4초마다)이
+  // 먼저 집어 번호가 한 칸씩 밀려, 옆 타일 — 흔히 다른 색 — 이 딸려 온다. 색이 다르면 같은 색 중에서 준다.
+  function poolIndexFor(s, idx, color) {
+    if (color !== 'b' && color !== 'w') return idx;
+    if (s.pool[idx] && s.pool[idx].color === color) return idx;
+    var same = [];
+    s.pool.forEach(function (t, i) { if (t.color === color) same.push(i); });
+    return same.length ? same[Math.floor(Math.random() * same.length)] : idx;
+  }
+
   function doAction(pid, action, args) {
     var s = App.state, r = null;
     if (!s) return;
-    if (action === 'draftPick') r = R.draftPick(s, pid, args[0]);
+    if (action === 'draftPick') r = R.draftPick(s, pid, poolIndexFor(s, args[0], args[1]));
     else if (action === 'setupMove') r = R.setupMove(s, pid, args[0], args[1]);
     else if (action === 'setupReady') r = R.setupReady(s, pid);
     else if (action === 'orderPick') r = R.orderPick(s, pid, args[0]);
     else if (action === 'orderChoose') r = R.orderChoose(s, pid, !!args[0]);
-    else if (action === 'draw') r = R.draw(s, pid, args[0]);
+    else if (action === 'draw') r = R.draw(s, pid, poolIndexFor(s, args[0], args[1]));
     else if (action === 'guess') r = R.guess(s, pid, args[0], args[1], args[2], args[3]);
     else if (action === 'decide') r = R.decide(s, pid, args[0]);
     else if (action === 'place') r = R.place(s, pid, args[0]);
@@ -519,7 +552,7 @@
         if (t.color !== color) return;
         any = true;
         var e = tileEl({ color: color, n: null, joker: null }, false, {});
-        if (canPick) e.onclick = function () { act(action, [i]); };
+        if (canPick) e.onclick = function () { act(action, [i, color]); };
         row.appendChild(e);
       });
       if (any) wrap.appendChild(row);
@@ -739,6 +772,21 @@
   }
 
   /* ---------------- 그리기 ---------------- */
+  // 놓기·자기 패 공개는 내 손패를 눌러야 하는데, 좁은 화면에서는 내 손패가 화면 아래에 있어
+  // 스크롤해야 보였다. 그 차례가 새로 오면 한 번만 내 손패가 보이게 내려 준다.
+  var lastReveal = '';
+  function revealMyHand(v) {
+    var need = isMyTurn(v) && (v.phase === 'penalty' || (v.phase === 'place' && v.pending));
+    var key = need ? v.phase + ':' + v.turn + ':' + (v.log ? v.log.length : '') : '';
+    if (!need) { lastReveal = ''; return; }
+    if (key === lastReveal) return;
+    lastReveal = key;
+    var box = $('seatMe'), r = box.getBoundingClientRect();
+    if (r.bottom > window.innerHeight || r.top < 0) {
+      box.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'end' });
+    }
+  }
+
   function render() {
     var v = App.view;
     if (!v) return;
@@ -791,6 +839,7 @@
 
     $('seatMe').innerHTML = '';
     if (meP) $('seatMe').appendChild(playerBox(v, meP, true));
+    revealMyHand(v);
 
     syncChatVisible();
     renderSeq(v);
@@ -924,6 +973,8 @@
 
   /* ---------------- 방장 / 참가자 ---------------- */
   function beHost() {
+    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
+    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
     App.mode = 'host'; App.me = 'host';
     App.seats = [{ id: 'host', name: myName(), bot: false }];
     App.net = new Net();
@@ -936,7 +987,8 @@
     };
     App.net.on.join = function (pid, name) {
       if (App.started || App.seats.length >= 4) {
-        App.net.toPlayer(pid, { t: 'err', msg: App.started ? '이미 시작된 방입니다.' : '자리가 찼습니다.' });
+        App.net.toPlayer(pid, { t: 'err', msg: App.started ? '이미 시작된 방입니다.' : '자리가 찼습니다.', fatal: true });
+        App.net.kick(pid);                         // 붙여 두면 관전자처럼 판 화면을 계속 받는다
         return;
       }
       var base = name, n = 2;
@@ -961,6 +1013,8 @@
   }
 
   function beClient(code) {
+    if (App.net) App.net.close();              // 연타·재시도로 연결이 둘 생기지 않게 앞의 것은 닫는다
+    chatReset();                               // 전 방에서 오간 말을 새 방에 들고 가지 않는다
     App.mode = 'client';
     App.net = new Net();
     App.net.on.status = toast;
@@ -986,7 +1040,10 @@
         if ($('game').classList.contains('hidden')) show('game');
         applyView(msg.view);
       } else if (msg.t === 'chat') addChat(msg.name, msg.text, msg.from === App.me);
-      else if (msg.t === 'err') toast(msg.msg);
+      else if (msg.t === 'err') {
+        toast(msg.msg);
+        if (msg.fatal) { App.net.close(); show('menu'); }   // 방장이 받지 않았다 — 대기실에 남겨 두지 않는다
+      }
     };
     App.net.join(code, myName());
   }
@@ -1036,6 +1093,13 @@
      방장이 받아서 모두에게 그대로 넘겨 준다. 봇만 있는 방에서는 아예 뜨지 않는다. */
 
   var chatUnread = 0, chatLast = {};      // 도배 방지는 사람마다 따로 센다
+  /** 새 방에 들어오면 채팅을 비운다. 안 그러면 전 방에서 오간 말이 새 방 채팅창에 그대로 남는다. */
+  function chatReset() {
+    $('chatLog').textContent = '';
+    $('chat').hidden = true;
+    chatUnread = 0; chatLast = {}; chatBadge(); chatPeekOff();
+    chatAway = 0; chatTitle();
+  }
   function chatEsc(t) {
     return String(t).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
