@@ -134,17 +134,14 @@
     }
   }
 
-  var ORDER_MS = 2800;       // 선공을 보여주는 시간
+  var ORDER_MS = 2800;       // 정해진 선공을 보여주는 시간 (글이 길면 더)
+  var BANNER_MS = 1900;      // 가운데 큰 안내가 떠 있는 시간
 
   function scheduleBot() {
     clearTimeout(App.botTimer);
     var s = App.state;
     if (!s || s.phase === 'over') return;
-    if (s.phase === 'order') {
-      // 선공을 보여주고 나서 시작한다. 뚝 시작하지 않게.
-      App.botTimer = setTimeout(function () { R.beginPlay(s); pushViews(); }, ORDER_MS);
-      return;
-    }
+    if (s.phase === 'order') { scheduleOrder(s); return; }
     var hold = App.holdUntil - Date.now();
     if (hold > 0) { App.botTimer = setTimeout(scheduleBot, hold + 60); return; }
     if (s.phase === 'setup') {
@@ -182,6 +179,43 @@
     pushViews();
   }
 
+  // 선후공 정하기: 봇은 한 장씩 뽑고, 봇이 가장 높으면 잠시 뒤 고른다.
+  // 순서가 정해지면 누가 먼저인지 읽을 시간을 준 뒤에 판을 연다.
+  function scheduleOrder(s) {
+    var o = s.order;
+    if (o.choice) {
+      var txt = $('stageTitle').textContent + $('stageText').textContent;
+      App.botTimer = setTimeout(function () { R.beginPlay(s); pushViews(); }, readMs(txt, ORDER_MS));
+      return;
+    }
+    if (o.winnerId) {
+      var ws = seatOf(o.winnerId);
+      if (ws && ws.bot) {
+        App.botTimer = setTimeout(function () {
+          R.orderChoose(s, o.winnerId, Math.random() < 0.7);
+          pushViews();
+        }, 2400);                                // 누가 몇을 뽑았는지 볼 틈
+      }
+      return;
+    }
+    var bot = App.seats.filter(function (st) {
+      if (!st.bot || o.picks.hasOwnProperty(st.id)) return false;
+      var p = null; s.players.forEach(function (x) { if (x.id === st.id) p = x; });
+      return p && !p.out;
+    })[0];
+    if (!bot) return;
+    // 막 시작했으면 가운데 안내가 걷힌 뒤에 뽑기 시작한다
+    var wait = (s.lastEvent && s.lastEvent.type === 'orderStart') ? BANNER_MS + 250 : 700;
+    App.botTimer = setTimeout(function () {
+      var taken = {};
+      for (var k in o.picks) taken[o.picks[k]] = true;
+      var free = [];
+      o.deck.forEach(function (_, i) { if (!taken[i]) free.push(i); });
+      R.orderPick(s, bot.id, free[Math.floor(Math.random() * free.length)]);
+      pushViews();
+    }, wait);
+  }
+
   function botStep() {
     var s = App.state;
     if (!s || s.phase === 'over') return;
@@ -205,7 +239,7 @@
   var pickLockUntil = 0;
 
   function act(action, args) {
-    if (action === 'draftPick' || action === 'draw') {
+    if (action === 'draftPick' || action === 'draw' || action === 'orderPick') {
       var now = Date.now();
       if (now < pickLockUntil) return;          // 연타로 두 장 집히는 것 막기
       pickLockUntil = now + PICK_LOCK_MS;
@@ -220,6 +254,8 @@
     if (action === 'draftPick') r = R.draftPick(s, pid, args[0]);
     else if (action === 'setupMove') r = R.setupMove(s, pid, args[0], args[1]);
     else if (action === 'setupReady') r = R.setupReady(s, pid);
+    else if (action === 'orderPick') r = R.orderPick(s, pid, args[0]);
+    else if (action === 'orderChoose') r = R.orderChoose(s, pid, !!args[0]);
     else if (action === 'draw') r = R.draw(s, pid, args[0]);
     else if (action === 'guess') r = R.guess(s, pid, args[0], args[1], args[2], args[3]);
     else if (action === 'decide') r = R.decide(s, pid, args[0]);
@@ -289,17 +325,25 @@
   /* ---------------- 자리 ---------------- */
   function playerBox(v, p, big) {
     var isMe = p.id === v.me;
-    var isTurn = v.phase !== 'over' && v.phase !== 'setup' &&
+    var isTurn = (inPlay(v) || (v.phase === 'order' && v.order && v.order.choice)) &&
                  v.players[v.turn] && v.players[v.turn].id === p.id;
     var box = el('div', 'player' + (isMe ? ' mine' : '') + (isTurn ? ' turn' : '') + (p.out ? ' out' : ''));
 
     var head = el('div', 'phead');
     if (isTurn) head.appendChild(el('span', 'turnbadge', isMe ? '내 차례' : '차례'));
     head.appendChild(el('span', 'who', p.name + (isMe ? ' (나)' : '')));
+    if (v.firstId === p.id) head.appendChild(el('span', 'firstpill', '선공'));
     var hid = p.hand.filter(function (s) { return !s.faceUp; }).length;
     head.appendChild(el('span', 'meta', p.out ? '탈락' : ('숨은 ' + hid + '장')));
     if (isTurn && v.hasDrawn && !isMe) {
       head.appendChild(el('span', 'meta', '· ' + (v.drawnColor === 'b' ? '검정' : '흰색') + ' 집음'));
+    }
+    if (v.phase === 'order' && v.order && !p.out) {
+      var pk = pickOf(v, p.id);
+      if (!pk) head.appendChild(el('span', 'meta', '· 뽑는 중'));
+      else if (pk.n === null) head.appendChild(el('span', 'meta ok', '· 뽑음'));
+      else head.appendChild(el('span', 'opick' + (v.order.winnerId === p.id ? ' best' : ''),
+                               pk.n + (v.order.winnerId === p.id ? ' 최고' : '')));
     }
     if (v.phase === 'setup' && !p.out) {
       if (v.ready[p.id]) {
@@ -428,41 +472,40 @@
     if (v.phase === 'setup') {
       var mine = myPlayer(v);
       var need = v.handSize - (mine ? mine.hand.length : 0);
-      if (need > 0 && !v.ready[v.me]) {
-        var w1 = el('div', 'floor can');
-        w1.appendChild(el('h3', null, '바닥에서 ' + need + '장 더 고르세요 (색만 보고 고릅니다)'));
-        poolRows(w1, v, true);
-        return w1;
-      }
-      var w0 = el('div', 'floor');
-      w0.appendChild(el('h3', null, v.ready[v.me] ? '다른 사람이 끝내기를 기다리는 중'
-                                                  : '손패 정리를 마치면 준비를 누르세요'));
-      poolRows(w0, v, false);
-      return w0;
+      var canDraft = need > 0 && !v.ready[v.me];
+      var w1 = el('div', 'floor' + (canDraft ? ' can' : ''));
+      w1.appendChild(el('h3', null, canDraft ? '바닥 — ' + need + '장 더 고르세요' : '바닥 ' + v.poolCount + '장'));
+      poolRows(w1, v, canDraft);
+      return w1;
     }
+    if (v.phase === 'order') return orderBoard(v);
 
     var wrap = el('div', 'floor');
     var canPick = v.phase === 'draw' && isMyTurn(v) && v.poolCount > 0;
     if (canPick) wrap.classList.add('can');
     var nb = 0; v.pool.forEach(function (t) { if (t.color === 'b') nb++; });
-    wrap.appendChild(el('h3', null, '바닥 ' + v.poolCount + '장 (검정 ' + nb + ' · 흰색 ' + (v.poolCount - nb) + ')' +
-                                    (canPick ? ' — 한 장 고르세요' : '')));
+    wrap.appendChild(el('h3', null, (canPick ? '바닥 — 한 장 고르세요 · ' : '바닥 ') +
+                                    v.poolCount + '장 (검정 ' + nb + ' · 흰색 ' + (v.poolCount - nb) + ')'));
 
-    poolRows(wrap, v, canPick, 'draw');
+    var body = el('div', 'floorbody');
+    var piles = el('div', 'piles');
+    poolRows(piles, v, canPick, 'draw');
+    body.appendChild(piles);
 
     if (v.hasDrawn && isMyTurn(v) && v.drawn) {
       var b = el('div', 'drawn-box');
-      b.appendChild(el('span', null, '집은 타일'));
-      var de = tileEl(v.drawn, false, { big: true, own: true });
+      b.appendChild(el('span', null, '가져온 패'));
+      var de = tileEl(v.drawn, false, { own: true });
       de.classList.add('drawn');
       b.appendChild(de);
-      wrap.appendChild(b);
+      body.appendChild(b);
     } else if (v.phase === 'place' && v.pending) {
       var b2 = el('div', 'drawn-box');
-      b2.appendChild(el('span', null, v.pending.faceUp ? '공개해서 놓을 타일' : '덮어서 놓을 타일'));
-      b2.appendChild(tileEl(v.pending.tile, v.pending.faceUp, { big: true, own: true }));
-      wrap.appendChild(b2);
+      b2.appendChild(el('span', null, v.pending.faceUp ? '공개해서 놓을 패' : '덮어서 놓을 패'));
+      b2.appendChild(tileEl(v.pending.tile, v.pending.faceUp, { own: true }));
+      body.appendChild(b2);
     }
+    wrap.appendChild(body);
     return wrap;
   }
 
@@ -485,31 +528,246 @@
 
   function eventKey(ev) { return ev ? JSON.stringify(ev) : ''; }
 
+  /* ---------------- 선후공 정하기 ---------------- */
+  function pickOf(v, pid) {
+    if (!v.order) return null;
+    for (var i = 0; i < v.order.tiles.length; i++) if (v.order.tiles[i].by === pid) return v.order.tiles[i];
+    return null;
+  }
+  function nameOf(v, pid) {
+    for (var i = 0; i < v.players.length; i++) if (v.players[i].id === pid) return v.players[i].id === v.me ? '나' : v.players[i].name;
+    return '?';
+  }
+
+  // 순서 패 열두 장. 누가 어느 패를 뽑았는지는 바로 보이고, 숫자는 다 뽑은 뒤 한꺼번에 뒤집힌다.
+  function orderBoard(v) {
+    var o = v.order;
+    var meAlive = myPlayer(v) && !myPlayer(v).out;
+    var canPick = !o.revealed && meAlive && !pickOf(v, v.me);
+    var wrap = el('div', 'floor oboard' + (canPick ? ' can' : '') + (o.revealed ? ' done' : ''));
+    wrap.appendChild(el('h3', null, canPick ? '순서 패 — 한 장 뽑으세요' : '순서 패 (0~11)'));
+    var grid = el('div', 'ogrid');
+    var ev = App.animateEv;
+    o.tiles.forEach(function (t, i) {
+      var cell = el('div', 'ocell');
+      var tile = el('div', 'otile' + (t.n !== null ? ' open' : '') + (t.by ? ' taken' : '') +
+                           (t.by === v.me ? ' minepick' : '') + (o.winnerId && t.by === o.winnerId ? ' best' : ''));
+      tile.textContent = t.n !== null ? t.n : '';
+      if (canPick && !t.by) {
+        tile.classList.add('pick');
+        tile.onclick = function () { act('orderPick', [i]); };
+      }
+      if (ev && ev.type === 'orderPick' && ev.index === i) tile.classList.add('lift');
+      if (ev && ev.type === 'orderReveal' && t.by) tile.classList.add('flip');
+      cell.appendChild(tile);
+      cell.appendChild(el('span', 'otag', t.by ? nameOf(v, t.by) : ''));
+      grid.appendChild(cell);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  // 시계방향으로 돌 때의 자리 순서. 선공이 정해졌으면 선공부터.
+  function clockwise(v) {
+    var n = v.players.length, start = 0;
+    for (var i = 0; i < n; i++) if (v.players[i].id === v.firstId) start = i;
+    var out = [];
+    for (var k = 0; k < n; k++) out.push(v.players[(start + k) % n]);
+    return out;
+  }
+
+  function inPlay(v) {
+    return ['draw', 'guess', 'decide', 'place', 'penalty'].indexOf(v.phase) >= 0;
+  }
+
+  /* ---------------- 가운데 안내판 ----------------
+     지금 무슨 단계인지(steps), 누가 무엇을 하는지(title), 무엇을 하면 되는지(text).
+     내가 할 일이면 강조되고, 누를 버튼도 여기에 있다. 눈이 판 한가운데에 머물게. */
+  function stageInfo(v) {
+    var me = myPlayer(v);
+    var SETUP = ['손패 가져오기', '손패 정리', '선후공 정하기'];
+    var PLAY = ['가져오기', '맞히기', v.phase === 'penalty' ? '내 패 공개' : '놓기'];
+    var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
+    var total = v.players.filter(function (p) { return !p.out; }).length;
+
+    if (v.phase === 'setup') {
+      var need = v.handSize - (me ? me.hand.length : 0);
+      if (v.ready[v.me]) return { steps: SETUP, at: 1, title: '준비 완료',
+        text: '다른 사람이 손패를 정리하는 중입니다 · ' + done + '/' + total };
+      if (need > 0) return { steps: SETUP, at: 0, mine: true, title: '시작 손패를 가져오세요',
+        text: '바닥에서 ' + need + '장 더 고르세요. 색만 보고 고르고, 숫자는 가져온 뒤에 봅니다.' };
+      var hasJk = (v.myJokers || []).length > 0;
+      return { steps: SETUP, at: 1, mine: true, title: '손패를 정리하세요',
+        text: hasJk ? '조커는 틈을 눌러 원하는 자리로 옮길 수 있습니다. 다 됐으면 게임 시작.'
+                    : '숫자 패는 크기 순으로 자동 정렬됩니다. 확인했으면 게임 시작.',
+        acts: [{ label: '게임 시작', primary: true, fn: function () { act('setupReady', []); } }] };
+    }
+
+    if (v.phase === 'order') {
+      var o = v.order, mine = pickOf(v, v.me);
+      if (o.choice) {
+        var f = null; v.players.forEach(function (p) { if (p.id === v.firstId) f = p; });
+        var seq = clockwise(v).filter(function (p) { return !p.out; })
+                              .map(function (p) { return p.id === v.me ? '나' : p.name; });
+        return { steps: SETUP, at: 2, mine: f && f.id === v.me,
+          title: f ? (f.id === v.me ? '내가 선공입니다' : f.name + ' 선공') : '순서 결정',
+          text: '시계방향으로 돕니다: ' + seq.join(' → ') };
+      }
+      if (o.winnerId) {
+        var wp = pickOf(v, o.winnerId), wn = nameOf(v, o.winnerId);
+        if (o.winnerId === v.me) return { steps: SETUP, at: 2, mine: true,
+          title: '내가 가장 높습니다 · ' + wp.n,
+          text: '선공은 내가 먼저, 후공은 내가 마지막입니다. 차례는 시계방향으로 돕니다.',
+          acts: [{ label: '선공 — 내가 먼저', primary: true, fn: function () { act('orderChoose', [true]); } },
+                 { label: '후공 — 내가 마지막', fn: function () { act('orderChoose', [false]); } }] };
+        return { steps: SETUP, at: 2, title: wn + ' 가장 높음 · ' + wp.n,
+          text: '선공·후공을 고르는 중입니다' };
+      }
+      if (mine) return { steps: SETUP, at: 2, title: '내 순서 패는 ' + mine.n,
+        text: '모두 뽑으면 한꺼번에 공개합니다. 가장 높은 숫자가 선공·후공을 정합니다.' };
+      return { steps: SETUP, at: 2, mine: !!(me && !me.out), title: '선후공을 정하는 중입니다',
+        text: '순서 패를 한 장 뽑으세요. 가장 높은 숫자가 나오면 선공·후공을 정할 수 있습니다.' };
+    }
+
+    if (!inPlay(v)) return null;
+    var cur = v.players[v.turn];
+    var at = { draw: 0, guess: 1, decide: 1, place: 2, penalty: 2 }[v.phase];
+
+    if (!isMyTurn(v)) {
+      // 남의 차례는 짧게 — 1초 남짓 떠 있다가 바뀌므로 길면 못 읽는다 (qa/pace.py)
+      var what = { draw: '집는 중', place: '놓는 중', guess: '지목하는 중',
+                   decide: '고민하는 중', penalty: '공개하는 중' }[v.phase];
+      return { steps: PLAY, at: at, title: (cur ? cur.name : '') + '의 차례', text: what };
+    }
+
+    var info = { steps: PLAY, at: at, mine: true, title: '내 차례' };
+    if (v.phase === 'draw') {
+      info.text = v.poolCount ? '바닥에서 패를 한 장 가져오세요. 색만 보고 고릅니다.'
+                              : '바닥이 비었습니다. 가져오지 않고 바로 맞힙니다.';
+      if (!v.poolCount) info.acts = [{ label: '맞히러 가기', primary: true, fn: function () { act('draw', [0]); } }];
+    } else if (v.phase === 'guess') {
+      var tg = selTarget(v);
+      if (tg) {
+        var tc = tg.hand[App.sel.index].tile.color;
+        info.title = tg.name + '의 ' + (App.sel.index + 1) + '번째 ' + (tc === 'b' ? '검정' : '흰색') + ' 패는?';
+        info.text = '';                          // 제목이 곧 질문이다. 줄 하나 아껴 한 화면에 담는다
+        info.node = guessGrid(v, tg);
+      } else {
+        info.title = '상대 패 맞히기';
+        info.text = '상대의 덮인 패를 하나 눌러 지목하세요.';
+      }
+    } else if (v.phase === 'decide') {
+      info.title = '적중! 한 번 더?';
+      info.text = v.hasDrawn ? '이어서 맞히다 빗나가면 가져온 패가 공개됩니다. 멈추면 덮은 채로 놓습니다.'
+                             : '이어서 맞히거나 차례를 넘기세요.';
+      info.acts = [{ label: '이어서 맞히기', primary: true, fn: function () { act('decide', [true]); } },
+                   { label: v.hasDrawn ? '멈추고 덮어 놓기' : '차례 넘기기', fn: function () { act('decide', [false]); } }];
+    } else if (v.phase === 'place') {
+      info.title = v.pending && v.pending.faceUp ? '빗나감 — 패 공개해서 놓기' : '가져온 패 놓기';
+      info.text = v.pending && v.pending.tile.joker ? '조커입니다. 어느 자리에나 놓을 수 있습니다. 상대를 속일 자리를 고르세요.'
+                                                    : '내 손패의 밝은 틈이 순서에 맞는 자리입니다. 눌러서 놓으세요.';
+    } else if (v.phase === 'penalty') {
+      info.title = '내 패 하나 공개';
+      info.text = '바닥이 비었는데 빗나갔습니다. 내 덮인 패 하나를 골라 공개하세요.';
+    }
+    return info;
+  }
+
+  function renderStage(v) {
+    var st = $('stage'), info = stageInfo(v);
+    st.hidden = !info;
+    if (!info) return;
+    var key = info.title + '|' + info.at;
+    if (key !== App.stageKey) {                  // 단계가 바뀔 때만 살짝 들썩여 눈길을 끈다
+      App.stageKey = key;
+      st.classList.remove('fresh'); void st.offsetWidth; st.classList.add('fresh');
+    }
+    st.classList.toggle('mine', !!info.mine);
+
+    var steps = $('stageSteps'); steps.innerHTML = '';
+    info.steps.forEach(function (label, i) {
+      if (i) steps.appendChild(el('span', 'st-arrow', '›'));
+      steps.appendChild(el('span', 'st-step' + (i === info.at ? ' now' : i < info.at ? ' past' : ''), label));
+    });
+    $('stageTitle').textContent = info.title;
+    $('stageText').textContent = info.text || '';
+    var acts = $('stageActs'); acts.innerHTML = '';
+    (info.acts || []).forEach(function (a) {
+      var b = el('button', a.primary ? 'primary' : null, a.label);
+      b.onclick = a.fn;
+      acts.appendChild(b);
+    });
+    if (info.node) acts.appendChild(info.node);
+    acts.hidden = !(info.acts && info.acts.length) && !info.node;
+    acts.classList.toggle('grid', !!info.node);
+  }
+
+  // 판 위쪽 띠 — 시계방향 차례 순서. 지금 차례인 사람에게 불이 들어온다.
+  function renderSeq(v) {
+    var box = $('nowSeq'); box.innerHTML = '';
+    var nb = $('nowband');
+    var decided = !!v.firstId && (inPlay(v) || v.phase === 'order' || v.phase === 'over');
+    nb.classList.toggle('mine', isMyTurn(v) && inPlay(v));
+    if (!decided) {
+      var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
+      var total = v.players.filter(function (p) { return !p.out; }).length;
+      box.appendChild(el('span', 'nb-plain', v.phase === 'setup'
+        ? '손패 정리 · 시작 ' + done + '/' + total
+        : '선후공 정하는 중 · 차례는 시계방향'));
+      return;
+    }
+    var cur = v.players[v.turn];
+    clockwise(v).forEach(function (p, i) {
+      if (i) box.appendChild(el('span', 'nb-arrow', '→'));
+      var chip = el('span', 'nb-chip' + (cur && cur.id === p.id && v.phase !== 'over' ? ' now' : '') +
+                             (p.id === v.me ? ' me' : '') + (p.out ? ' out' : ''),
+                    p.id === v.me ? '나' : p.name);
+      box.appendChild(chip);
+    });
+    box.appendChild(el('span', 'nb-cw', '↻ 시계방향'));
+  }
+
+  // 단계가 넘어가는 순간에만 화면 가운데 크게 띄운다
+  var bannerTimer = null;
+  function banner(title, sub) {
+    var b = $('banner');
+    $('bannerTitle').textContent = title;
+    $('bannerSub').textContent = sub || '';
+    b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () { b.classList.remove('on'); }, BANNER_MS);
+  }
+
   /* ---------------- 그리기 ---------------- */
   function render() {
     var v = App.view;
     if (!v) return;
 
-    if (App.animateEv) {
-      if (App.animateEv.type === 'guess') flashBig(App.animateEv.hit ? '적중' : '빗나감', App.animateEv.hit ? 'hit' : 'miss');
-      else if (App.animateEv.type === 'begin') flashBig('시작', 'go');
+    var ae = App.animateEv;
+    if (ae) {
+      if (ae.type === 'guess') flashBig(ae.hit ? '적중' : '빗나감', ae.hit ? 'hit' : 'miss');
+      else if (ae.type === 'begin') flashBig('시작', 'go');
+      else if (ae.type === 'orderStart') banner('선후공 정하기', '가장 높은 숫자를 뽑은 사람이 선공·후공을 고릅니다');
+      else if (ae.type === 'orderChosen') banner(ae.firstId === v.me ? '내가 선공' : ae.firstName + ' 선공',
+        (ae.by === v.me ? '나' : ae.byName) + ' — ' + (ae.choice === 'first' ? '선공' : '후공') + ' 선택 · 차례는 시계방향');
     }
 
     var cur = v.players[v.turn];
+    $('turnInfo').innerHTML = '';
     if (v.phase === 'setup') {
       var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
       var total = v.players.filter(function (p) { return !p.out; }).length;
-      $('turnInfo').textContent = '손패 정리 — 준비 ' + done + '/' + total;
-    } else {
-      $('turnInfo').innerHTML = '';
-      if (v.phase === 'over') $('turnInfo').textContent = '게임 종료';
-      else if (cur) {
-        var dot = el('span', 'turndot');
-        var who = el('span', 'turnwho', cur.id === v.me ? '내 차례' : cur.name + '의 차례');
-        if (cur.id === v.me) who.classList.add('mineturn');
-        $('turnInfo').appendChild(dot);
-        $('turnInfo').appendChild(who);
-      }
+      $('turnInfo').textContent = '손패 정리 — 시작 ' + done + '/' + total;
+    } else if (v.phase === 'order') {
+      $('turnInfo').textContent = '선후공 정하기';
+    } else if (v.phase === 'over') {
+      $('turnInfo').textContent = '게임 종료';
+    } else if (cur) {
+      var dot = el('span', 'turndot');
+      var who = el('span', 'turnwho', cur.id === v.me ? '내 차례' : cur.name + '의 차례');
+      if (cur.id === v.me) who.classList.add('mineturn');
+      $('turnInfo').appendChild(dot);
+      $('turnInfo').appendChild(who);
     }
 
     var others = [], meP = null, n = v.players.length;
@@ -520,66 +778,25 @@
     }
     v.players.forEach(function (p) { if (p.id === v.me) meP = p; });
 
+    // 나(아래)에서 시계방향으로 왼쪽 → 위 → 오른쪽. 엔진의 다음 차례와 같은 방향이다.
     var layout = others.length === 1 ? ['seatTop']
                : others.length === 2 ? ['seatLeft', 'seatRight']
                : ['seatLeft', 'seatTop', 'seatRight'];
     ['seatTop', 'seatLeft', 'seatRight'].forEach(function (id) { $(id).innerHTML = ''; });
     others.forEach(function (p, i) { $(layout[i]).appendChild(playerBox(v, p, false)); });
 
-    $('center').innerHTML = '';
-    $('center').appendChild(floorBox(v));
+    renderStage(v);
+    $('floorArea').innerHTML = '';
+    $('floorArea').appendChild(floorBox(v));
 
     $('seatMe').innerHTML = '';
     if (meP) $('seatMe').appendChild(playerBox(v, meP, true));
 
-    renderPanel(v);
-
     syncChatVisible();
-    var nb = $('nowband'), nl = nowLine(v);
-    $('nowWho').textContent = nl.who;
-    $('nowWhat').textContent = nl.what;
-    nb.classList.toggle('mine', nl.mine);
+    renderSeq(v);
 
     if (v.phase === 'over') showOver(v);
     App.animateEv = null;
-  }
-
-  // 지금 무슨 일이 벌어지는가 — 판 위쪽 띠에.
-  // 이름과 상태를 따로 둔다. 한 사람의 차례가 이어지는 동안 이름은 그대로 있고
-  // 뒤쪽 짧은 말만 바뀌므로, 한 줄이 통째로 갈리지 않아 눈이 따라갈 수 있다.
-  function nowLine(v) {
-    var cur = v.players[v.turn];
-    var mine = !!(cur && cur.id === v.me);
-
-    if (v.phase === 'over') return { who: '', what: '판이 끝났습니다', mine: false };
-    if (v.phase === 'order') {
-      var f = null;
-      v.players.forEach(function (p) { if (p.id === v.firstId) f = p; });
-      return { who: '순서 정하기', mine: !!(f && f.id === v.me),
-               what: f ? (f.id === v.me ? '내가 선공입니다' : f.name + ' 선공') : '' };
-    }
-    if (v.phase === 'setup') {
-      var done = v.players.filter(function (p) { return !p.out && v.ready[p.id]; }).length;
-      var total = v.players.filter(function (p) { return !p.out; }).length;
-      if (!v.ready[v.me]) {
-        var meP = myPlayer(v);
-        var need = v.handSize - (meP ? meP.hand.length : 0);
-        return { who: '손패 정리', mine: true,
-                 what: need > 0 ? '바닥에서 ' + need + '장 더' : '자리를 정하고 준비를 누르세요' };
-      }
-      return { who: '손패 정리', what: '준비 ' + done + '/' + total, mine: false };
-    }
-
-    // 남의 차례에는 짧게 — 1초 남짓 떠 있다가 바뀌므로 길면 못 읽는다.
-    // 내 차례에는 무엇을 해야 하는지 또렷하게 — 판이 나를 기다리므로 길어도 된다.
-    var what = mine
-      ? { draw: '바닥에서 한 장 고르세요', place: '놓을 자리를 고르세요',
-          guess: '상대의 덮인 타일을 지목하세요', decide: '한 번 더 맞힐지 고르세요',
-          penalty: '내 타일 하나를 공개하세요' }[v.phase]
-      : { draw: '집는 중', place: '놓는 중', guess: '지목하는 중',
-          decide: '고민하는 중', penalty: '공개하는 중' }[v.phase];
-
-    return { who: mine ? '내 차례' : (cur ? cur.name : ''), what: what || '', mine: mine };
   }
 
   function indexOfMe(v) {
@@ -593,111 +810,18 @@
     setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 1200);
   }
 
-  function renderPanel(v) {
-    var panel = $('panel'); panel.innerHTML = '';
-    if (v.phase === 'over') return;
-
-    if (v.phase === 'setup') {
-      if (v.ready[v.me]) {
-        panel.appendChild(el('div', 'waiting', '다른 사람이 끝내기를 기다리는 중…'));
-        return;
-      }
-      var sp = el('div', 'pnl');
-      var mineP = myPlayer(v);
-      var need = v.handSize - (mineP ? mineP.hand.length : 0);
-      if (need > 0) {
-        sp.appendChild(el('div', 'ask',
-          '시작 손패를 직접 고릅니다. 바닥에서 ' + need + '장 더 고르세요. ' +
-          '색만 보고 고르며, 숫자는 가져온 뒤에 확인합니다.'));
-        panel.appendChild(sp);
-        return;
-      }
-      var hasJk = (v.myJokers || []).length > 0;
-      sp.appendChild(el('div', 'ask', hasJk
-        ? '조커는 어느 자리에나 둘 수 있습니다. 자리를 고른 뒤 준비를 누르세요. 준비를 누르기 전까지 내 패의 색은 아무도 볼 수 없습니다.'
-        : '손패를 확인하세요. 숫자 패는 순서가 정해져 있어 옮길 수 없습니다. 준비를 누르면 색이 공개됩니다.'));
-      var rb = el('button', 'primary', '준비 완료');
-      rb.style.marginBottom = '0';
-      rb.onclick = function () { act('setupReady', []); };
-      sp.appendChild(rb);
-      panel.appendChild(sp);
-      return;
-    }
-
-    if (v.phase === 'order') {
-      var f = null;
-      v.players.forEach(function (p) { if (p.id === v.firstId) f = p; });
-      var op = el('div', 'pnl');
-      op.appendChild(el('div', 'ask', f
-        ? (f.id === v.me ? '선공은 나입니다. 곧 시작합니다.' : '선공은 ' + f.name + '. 곧 시작합니다.')
-        : '곧 시작합니다.'));
-      panel.appendChild(op);
-      return;
-    }
-
-    if (!isMyTurn(v)) {
-      var cur = v.players[v.turn];
-      panel.appendChild(el('div', 'waiting', (cur ? cur.name : '상대') + '의 차례를 기다리는 중…'));
-      return;
-    }
-
-    var pnl = el('div', 'pnl');
-
-    if (v.phase === 'draw') {
-      pnl.appendChild(el('div', 'ask', v.poolCount
-        ? '바닥에서 한 장 고르세요. 색만 보고 고를 수 있습니다.'
-        : '바닥이 비었습니다. 집지 않고 바로 추측합니다.'));
-      if (!v.poolCount) {
-        var go = el('button', 'primary', '추측하기');
-        go.style.marginBottom = '0';
-        go.onclick = function () { act('draw', [0]); };
-        pnl.appendChild(go);
-      }
-      panel.appendChild(pnl); return;
-    }
-
-    if (v.phase === 'place') {
-      pnl.appendChild(el('div', 'ask', v.pending.tile.joker
-        ? '조커입니다. 어느 자리에나 놓을 수 있어요. 상대를 속일 자리를 고르세요.'
-        : '놓을 자리를 고르세요. 밝게 표시된 곳이 순서에 맞는 자리입니다.'));
-      panel.appendChild(pnl); return;
-    }
-
-    if (v.phase === 'penalty') {
-      pnl.appendChild(el('div', 'ask', '바닥이 비었는데 빗나갔습니다. 내 타일 하나를 골라 공개하세요.'));
-      panel.appendChild(pnl); return;
-    }
-
-    if (v.phase === 'decide') {
-      pnl.appendChild(el('div', 'ask', '적중했습니다. 이어서 한 번 더 맞히시겠습니까? 빗나가면 집은 타일이 공개됩니다.'));
-      var acts = el('div', 'acts');
-      var g = el('button', 'primary', '이어서 맞히기');
-      g.style.marginBottom = '0';
-      g.onclick = function () { act('decide', [true]); };
-      var st = el('button', null, v.hasDrawn ? '멈추고 덮어놓기' : '차례 넘기기');
-      st.onclick = function () { act('decide', [false]); };
-      acts.appendChild(g); acts.appendChild(st);
-      pnl.appendChild(acts);
-      panel.appendChild(pnl); return;
-    }
-
-    // guess
-    if (!App.sel) {
-      pnl.appendChild(el('div', 'ask', '상대의 덮인 타일을 하나 고르세요.'));
-      panel.appendChild(pnl); return;
-    }
+  // 지목한 패 — 이미 공개됐거나 사라졌으면 고른 것을 푼다
+  function selTarget(v) {
+    if (!App.sel || v.phase !== 'guess' || !isMyTurn(v)) return null;
     var target = null;
     v.players.forEach(function (p) { if (p.id === App.sel.targetId) target = p; });
-    if (!target || !target.hand[App.sel.index] || target.hand[App.sel.index].faceUp) {
-      App.sel = null; renderPanel(v); return;
-    }
+    if (!target || !target.hand[App.sel.index] || target.hand[App.sel.index].faceUp) { App.sel = null; return null; }
+    return target;
+  }
 
+  // 부를 숫자 — 가운데 안내판 안에 둔다. 아래에 두면 화면 밖으로 밀려 스크롤해야 보였다.
+  function guessGrid(v, target) {
     var color = target.hand[App.sel.index].tile.color;
-    var ask = el('div', 'ask');
-    ask.textContent = target.name + ' 의 ' + (App.sel.index + 1) + '번째 ' +
-                      (color === 'b' ? '검정' : '흰색') + ' 타일 — 값을 고르세요';
-    pnl.appendChild(ask);
-
     var known = {};
     v.players.forEach(function (p) {
       p.hand.forEach(function (s) {
@@ -714,7 +838,7 @@
       });
     }
 
-    var nums = el('div', 'nums');
+    var nums = el('div', 'nums ' + color);
     for (var i = 0; i <= R.MAX_N; i++) {
       (function (n) {
         var b = el('button', null, String(n));
@@ -727,8 +851,7 @@
     if (known[color + 'J'] || (allowed && !allowed['J'])) jb.classList.add('off');
     jb.onclick = function () { act('guess', [App.sel.targetId, App.sel.index, color, null]); };
     nums.appendChild(jb);
-    pnl.appendChild(nums);
-    panel.appendChild(pnl);
+    return nums;
   }
 
   function showOver(v) {
@@ -751,6 +874,8 @@
     App.state = null; App.view = null; App.heldView = null;
     App.started = false; App.sel = null; App.setupSelColor = null;
     App.shownEvent = null; App.animateEv = null; App.holdUntil = 0; App.holdTimer = null;
+    App.stageKey = null;
+    clearTimeout(bannerTimer); $('banner').classList.remove('on');
 
     if (App.mode === 'solo') { show('menu'); return; }
     if (App.mode === 'host') {
@@ -823,22 +948,7 @@
       var seat = seatOf(pid); if (!seat) return;
       App.seats = App.seats.filter(function (s) { return s.id !== pid; });
       if (App.started && App.state) {
-        var s = App.state;
-        s.players.forEach(function (p) { if (p.id === pid && !p.out) p.out = true; });
-        s.log.push(seat.name + ' 연결 끊김 — 탈락 처리');
-        var alive = R.alivePlayers(s);
-        if (alive.length <= 1) { s.phase = 'over'; s.winner = alive.length ? alive[0].id : null; }
-        else if (s.phase === 'setup') {
-          var waiting = s.players.filter(function (q) { return !q.out && !s.ready[q.id]; });
-          if (!waiting.length) { s.phase = 'draw'; s.log.push('모두 준비 완료 — 시작합니다'); }
-        }
-        else if (R.current(s).out) {
-          s.drawn = null; s.pending = null; s.phase = 'draw';
-          for (var i = 1; i <= s.players.length; i++) {
-            var idx = (s.turn + i) % s.players.length;
-            if (!s.players[idx].out) { s.turn = idx; break; }
-          }
-        }
+        R.dropPlayer(App.state, pid);            // 그 사람을 기다리며 판이 멈추지 않게
         pushViews();
       } else { renderSeats(App.seats, true); broadcastLobby(); }
       toast(seat.name + ' 나감');

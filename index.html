@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=300ca00d">
+<link rel="stylesheet" href="style.css?v=9075820c">
 </head>
 <body>
 
@@ -65,8 +65,11 @@
       <h2>시작할 때</h2>
       <p class="gtext">바닥에서 <b>색만 보고</b> 손패를 직접 골라옵니다(2인 4장, 3~4인 3장).
         조커가 나오면 원하는 자리에 두세요.<br>
-        준비를 누르기 전까지 <b>배치는 아무도 볼 수 없습니다.</b>
+        게임 시작을 누르기 전까지 <b>배치는 아무도 볼 수 없습니다.</b>
         무슨 색을 몇 장 가졌는지만 공개됩니다.</p>
+      <p class="gtext">모두 시작을 누르면 <b>순서 패</b>를 한 장씩 뽑습니다.
+        가장 높은 숫자를 뽑은 사람이 <b>선공</b>(내가 먼저)이나 <b>후공</b>(내가 마지막)을 고릅니다.
+        차례는 <b>시계방향</b>으로 돕니다.</p>
     </div>
 
     <div class="block">
@@ -159,15 +162,23 @@
   </header>
 
   <div class="table">
-    <div class="nowband" id="nowband" aria-live="polite"><span class="nb-dot"></span><span class="nb-who" id="nowWho"></span><span class="nb-what" id="nowWhat"></span></div>
+    <div class="nowband" id="nowband"><span class="nb-dot"></span><span class="nb-seq" id="nowSeq"></span></div>
     <div class="cell top"    id="seatTop"></div>
     <div class="cell left"   id="seatLeft"></div>
-    <div class="cell center" id="center"></div>
+    <div class="cell center" id="center">
+      <!-- 판 한가운데 안내 — 지금 무슨 단계인지, 무엇을 해야 하는지 -->
+      <div class="stage" id="stage" aria-live="polite">
+        <div class="st-steps" id="stageSteps"></div>
+        <div class="st-title" id="stageTitle"></div>
+        <div class="st-text" id="stageText"></div>
+        <div class="st-acts" id="stageActs"></div>
+      </div>
+      <div id="floorArea"></div>
+    </div>
     <div class="cell right"  id="seatRight"></div>
     <div class="cell me"     id="seatMe"></div>
   </div>
 
-  <div id="panel"></div>
 </section>
 
 <!-- 결과 -->
@@ -180,6 +191,7 @@
 </div>
 
 <div id="announce" class="announce"></div>
+<div id="banner" class="banner"><div class="bn-title" id="bannerTitle"></div><div class="bn-sub" id="bannerSub"></div></div>
 
 <div id="toast" class="toast"></div>
 
@@ -197,10 +209,10 @@
 </section>
 
 <script src="vendor/peerjs.min.js?v=ad5d8870"></script>
-<script src="rules.js?v=d60cc21c"></script>
+<script src="rules.js?v=cc564d59"></script>
 <script src="ai.js?v=35335987"></script>
 <script src="net.js?v=6c7d3a30"></script>
-<script src="app.js?v=1812dae6"></script>
+<script src="app.js?v=1c68171c"></script>
 <!-- 연출 속도 재기 — ?qa=pace 로 들어올 때만 불러온다 (평소에는 요청조차 없다) -->
 <script>if(new URLSearchParams(location.search).get('qa')==='pace'){var s=document.createElement('script');s.src='qa/scene.js';document.body.appendChild(s);}</script>
 </body>

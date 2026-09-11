@@ -28,9 +28,14 @@ function begin(s){
     while (p.hand.length < s.handSize) R.draftPick(s, p.id, 0);
     R.setupReady(s, p.id);
   });
-  if (s.phase === 'order') R.beginPlay(s);
+  if (s.phase === 'order') { runOrder(s); R.beginPlay(s); }
   s.turn = 0;              // 선공은 무작위지만, 이후 테스트는 p0 기준으로 고정해 본다
   return s;
+}
+// 선후공 정하기를 넘긴다 — 각자 한 장씩 뽑고, 가장 높은 사람이 선공을 고른다
+function runOrder(s, first){
+  s.players.forEach(function(p, i){ if (!p.out) R.orderPick(s, p.id, i); });
+  R.orderChoose(s, s.order.winnerId, first !== false);
 }
 function firstHidden(p){ for(var i=0;i<p.hand.length;i++) if(!p.hand[i].faceUp) return i; return -1; }
 // 놓기 단계를 자동으로 넘긴다
@@ -107,12 +112,94 @@ section('시작 손패 정리');
   ok('두 명만으로도 아직', st.phase === 'setup');
   R.setupReady(st, st.players[2].id);
   ok('모두 준비하면 순서 정하기로', st.phase === 'order');
-  ok('선공이 정해진다', !!st.firstId && st.players.some(function(p){ return p.id === st.firstId; }));
-  ok('선공에게 차례가 가 있다', R.current(st).id === st.firstId);
-  ok('순서 단계에선 못 집는다', R.draw(st, st.firstId, 0).ok === false);
-  ok('발표 후 시작', (R.beginPlay(st).ok && st.phase === 'draw'));
-  ok('중복 시작 거부', R.beginPlay(st).ok === false);
+  ok('아직 선공은 없다', st.firstId === null);
+  ok('순서 패는 0~11 열두 장', st.order.deck.slice().sort(function(a,b){return a-b;}).join() === '0,1,2,3,4,5,6,7,8,9,10,11');
+  ok('순서 단계에선 못 집는다', R.draw(st, st.players[0].id, 0).ok === false);
+  ok('뽑기 전엔 시작 못 함', R.beginPlay(st).ok === false);
   ok('준비 끝나면 이동 거부', R.setupMove(st, who.id, 0, 1).ok === false);
+})();
+
+/* ---------------- 선후공 정하기 ---------------- */
+section('선후공 정하기');
+(function(){
+  function readyAll(np){
+    var s = R.newGame(P(np), 77);
+    s.players.forEach(function(p){ while (p.hand.length < s.handSize) R.draftPick(s, p.id, 0); R.setupReady(s, p.id); });
+    return s;
+  }
+  var s = readyAll(4), o = s.order;
+  ok('첫 장 뽑기', R.orderPick(s, 'p0', 3).ok);
+  ok('두 번 뽑기 거부', R.orderPick(s, 'p0', 4).ok === false);
+  ok('남이 뽑은 패 거부', R.orderPick(s, 'p1', 3).ok === false);
+  ok('없는 자리 거부', R.orderPick(s, 'p1', 12).ok === false);
+
+  var v0 = R.viewFor(s, 'p0'), v1 = R.viewFor(s, 'p1');
+  ok('내가 뽑은 숫자는 바로 보인다', v0.order.tiles[3].n === o.deck[3] && v0.order.tiles[3].by === 'p0');
+  ok('남이 뽑은 숫자는 아직 안 보인다', v1.order.tiles[3].n === null && v1.order.tiles[3].by === 'p0');
+  ok('안 뽑은 패 숫자는 새지 않는다', v1.order.tiles.every(function(t){ return t.by !== null || t.n === null; }));
+  ok('다 뽑기 전엔 고를 수 없다', R.orderChoose(s, 'p0', true).ok === false);
+
+  R.orderPick(s, 'p1', 0); R.orderPick(s, 'p2', 1);
+  ok('한 명 남으면 아직', o.winnerId === null);
+  R.orderPick(s, 'p3', 2);
+  var best = ['p0','p1','p2','p3'].reduce(function(a, id){ return o.deck[o.picks[id]] > o.deck[o.picks[a]] ? id : a; }, 'p0');
+  ok('가장 높은 사람이 가려진다', o.winnerId === best, o.winnerId + ' vs ' + best);
+  var v2 = R.viewFor(s, 'p2');
+  ok('다 뽑으면 모두 공개', [0,1,2,3].every(function(i){ return v2.order.tiles[i].n === o.deck[i]; }) && v2.order.revealed);
+  ok('뽑지 않은 패는 끝까지 비밀', v2.order.tiles.slice(4).every(function(t){ return t.n === null; }));
+  var other = best === 'p0' ? 'p1' : 'p0';
+  ok('최고가 아니면 고를 수 없다', R.orderChoose(s, other, true).ok === false);
+
+  var bi = +best.slice(1);
+  ok('후공 고르기', R.orderChoose(s, best, false).ok);
+  ok('후공이면 시계방향 다음 사람이 선공', s.turn === (bi + 1) % 4 && s.firstId === 'p' + ((bi + 1) % 4));
+  ok('다시 고르기 거부', R.orderChoose(s, best, true).ok === false);
+  ok('고른 뒤 시작', R.beginPlay(s).ok && s.phase === 'draw');
+
+  var s2 = readyAll(3);
+  [0,1,2].forEach(function(i){ R.orderPick(s2, 'p' + i, i); });
+  var w2 = s2.order.winnerId;
+  R.orderChoose(s2, w2, true);
+  ok('선공이면 내가 먼저', R.current(s2).id === w2 && s2.firstId === w2);
+
+  // 2인 후공 = 상대가 먼저
+  var s3 = readyAll(2);
+  R.orderPick(s3, 'p0', 5); R.orderPick(s3, 'p1', 6);
+  var w3 = s3.order.winnerId;
+  R.orderChoose(s3, w3, false);
+  ok('2인 후공이면 상대가 먼저', R.current(s3).id !== w3);
+
+  // 후공 선택 시 탈락자는 건너뛴다
+  var s4 = readyAll(4);
+  s4.order.deck = [0,1,2,3,4,5,6,7,8,9,10,11];
+  R.orderPick(s4, 'p0', 11); R.orderPick(s4, 'p1', 1); R.orderPick(s4, 'p2', 2);
+  R.dropPlayer(s4, 'p3');
+  ok('안 뽑은 사람이 나가면 남은 사람끼리 가린다', s4.order.winnerId === 'p0');
+  R.dropPlayer(s4, 'p1');
+  R.orderChoose(s4, 'p0', false);
+  ok('후공이면 나간 사람을 건너뛴다', R.current(s4).id === 'p2');
+
+  // 최고가 고르기 전에 나가면 다음으로 높은 사람이 고른다
+  var s5 = readyAll(3);
+  s5.order.deck = [0,1,2,3,4,5,6,7,8,9,10,11];
+  R.orderPick(s5, 'p0', 9); R.orderPick(s5, 'p1', 4); R.orderPick(s5, 'p2', 7);
+  R.dropPlayer(s5, 'p0');
+  ok('최고가 나가면 다음 사람이 고른다', s5.order.winnerId === 'p2' && s5.phase === 'order');
+
+  // 정리 중에 나가면 남은 사람끼리 넘어간다
+  var s6 = R.newGame(P(3), 5);
+  ['p0','p1'].forEach(function(id){ var p = s6.players.filter(function(x){ return x.id === id; })[0];
+    while (p.hand.length < s6.handSize) R.draftPick(s6, id, 0); R.setupReady(s6, id); });
+  R.dropPlayer(s6, 'p2');
+  ok('정리 중 이탈해도 순서 정하기로', s6.phase === 'order');
+
+  // 선공이 시작 전에 나가면 시계방향 다음 사람이 받는다
+  var s7 = readyAll(3);
+  [0,1,2].forEach(function(i){ R.orderPick(s7, 'p' + i, i); });
+  var w7 = s7.order.winnerId; R.orderChoose(s7, w7, true);
+  var wi = +w7.slice(1);
+  R.dropPlayer(s7, w7);
+  ok('선공이 나가면 다음 사람이 받는다', R.current(s7).id === 'p' + ((wi + 1) % 3) && R.beginPlay(s7).ok);
 })();
 
 /* ---------------- 준비 전 색 은닉 ---------------- */
@@ -301,7 +388,14 @@ ok('바닥은 색만', v1.pool.length === s6.pool.length && v1.pool.every(functi
 /* ---------------- 무작위 완주 ---------------- */
 section('무작위 완주 500판');
 function randomAction(s, rng) {
-  if (s.phase === 'order') return R.beginPlay(s);
+  if (s.phase === 'order') {
+    var o = s.order;
+    if (o.choice) return R.beginPlay(s);
+    if (o.winnerId) return R.orderChoose(s, o.winnerId, rng() < 0.5);
+    var who = s.players.filter(function(p){ return !p.out && !o.picks.hasOwnProperty(p.id); })[0];
+    var free = []; o.deck.forEach(function(_, i){ if (Object.keys(o.picks).every(function(k){ return o.picks[k] !== i; })) free.push(i); });
+    return R.orderPick(s, who.id, free[Math.floor(rng() * free.length)]);
+  }
   if (s.phase === 'setup') {
     var p0 = s.players.filter(function(p){ return !s.ready[p.id]; })[0];
     if (p0.hand.length < s.handSize) return R.draftPick(s, p0.id, Math.floor(rng() * s.pool.length));

@@ -15,7 +15,11 @@ function begin(s, rng){
     if (jk >= 0) R.setupMove(s, p.id, jk, Math.floor(rng() * p.hand.length));
     R.setupReady(s, p.id);
   });
-  if (s.phase === 'order') R.beginPlay(s);   // 선공 발표를 건너뛰고 바로 판으로
+  if (s.phase === 'order') {                 // 선후공 정하기를 건너뛰고 바로 판으로
+    s.players.forEach(function(p, i){ R.orderPick(s, p.id, i); });
+    R.orderChoose(s, s.order.winnerId, true);
+    R.beginPlay(s);
+  }
   return s;
 }
 

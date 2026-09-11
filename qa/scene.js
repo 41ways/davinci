@@ -61,7 +61,7 @@
       // 내 차례 줄은 내가 누를 때까지 떠 있는 것이라 길이를 잴 의미가 없다 — 표시만 해 둔다.
       var v0 = A.view;
       var mineTurn = !!(v0 && v0.players[v0.turn] && v0.players[v0.turn].id === v0.me);
-      var whoEl = document.getElementById('nowWho'), whatEl = document.getElementById('nowWhat');
+      var whoEl = document.getElementById('stageTitle'), whatEl = document.getElementById('stageText');   // 가운데 안내판
       [['nowwho', whoEl, 'who'], ['nowwhat', whatEl, 'what']].forEach(function (pair) {
         var kind = pair[0], node = pair[1], slot = pair[2];
         var txt = node ? node.textContent.trim() : '';

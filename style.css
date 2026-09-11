@@ -787,3 +787,143 @@ body.holding .slot { cursor: default; }
 .floor.can h3 { color: var(--accent); font-size: 12px; }
 .floor.can .pile .tile { box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift); }
 .floor.can .pile .tile.w { box-shadow: 0 4px 0 var(--tw-edge), 0 0 0 2px var(--accent-soft), var(--shadow-lift); }
+
+/* ════════════════ 가운데 안내판 ════════════════
+   지금 무슨 단계인지 · 누가 무엇을 하는지 · 내가 무엇을 하면 되는지.
+   판 한가운데, 바닥 바로 위에 둔다. 눈이 머무는 자리에 할 일과 버튼이 함께 있게. */
+.stage {
+  margin: 0 auto 9px; padding: 9px 14px 11px; max-width: 460px;
+  text-align: center; border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f5f7fa);
+  border: 1px solid #cfd6e0;
+  box-shadow: inset 0 1px 0 #fff, 0 6px 16px -10px rgba(30,40,55,.4);
+}
+.stage.mine {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, #f8fbff, #eaf1fa);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 8px 20px -10px rgba(47,79,122,.5);
+}
+.stage.fresh { animation: stagepop .42s cubic-bezier(.2,1.3,.4,1); }
+@keyframes stagepop { 0% { transform: scale(.94); opacity: .4; } 100% { transform: none; opacity: 1; } }
+
+.st-steps { display: flex; justify-content: center; align-items: center; gap: 5px; margin-bottom: 5px; flex-wrap: wrap; }
+.st-step {
+  font-size: 10.5px; font-weight: 700; color: var(--faint);
+  padding: 2px 8px; border-radius: 999px; letter-spacing: .02em;
+}
+.st-step.past { color: var(--dim); opacity: .7; }
+.st-step.past::before { content: '✓ '; }
+.st-step.now { background: var(--accent); color: var(--accent-ink); }
+.st-arrow { font-size: 11px; color: var(--faint); opacity: .7; }
+.st-title { font-size: 17px; font-weight: 800; color: var(--ink); line-height: 1.35; }
+.stage.mine .st-title { color: var(--accent); }
+.st-text { font-size: 12.5px; color: var(--dim); line-height: 1.55; margin-top: 2px; word-break: keep-all; }
+.st-acts { display: flex; gap: 8px; justify-content: center; margin-top: 9px; }
+.st-acts > button { flex: 1; max-width: 200px; margin: 0; padding: 9px 12px; }
+.st-acts > button.primary { width: auto; }
+.st-acts.grid { display: block; margin-top: 8px; }
+.st-acts .nums { gap: 5px; }
+.st-acts .nums button { padding: 8px 0; font-size: 15px; margin: 0; }
+.st-acts .nums button.jk { font-size: 13px; }
+
+/* ════════════════ 위쪽 띠: 시계방향 차례 순서 ════════════════ */
+.nb-seq { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+.nb-plain { font-weight: 700; }
+.nb-chip {
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  font-size: 12.5px; font-weight: 700; color: var(--dim);
+  background: rgba(255,255,255,.75); border: 1px solid var(--line);
+}
+.nb-chip.me { color: var(--ink); }
+.nb-chip.now { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 8px -2px rgba(47,79,122,.5); }
+.nb-chip.out { text-decoration: line-through; opacity: .45; }
+.nb-arrow { color: var(--faint); font-size: 12px; }
+.nb-cw { color: var(--faint); font-size: 11px; font-weight: 600; margin-left: 4px; white-space: nowrap; }
+@media (max-width: 560px) {
+  .nb-chip { padding: 2px 7px; font-size: 11.5px; }
+  .nb-cw { display: none; }
+}
+
+/* 선공 표시 · 순서 패 숫자 */
+.firstpill {
+  font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.opick {
+  font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px;
+  background: #1f3657; color: #fff; font-variant-numeric: tabular-nums;
+}
+.opick.best { background: #b8862b; }
+
+/* ════════════════ 순서 패 ════════════════
+   게임 타일과 헷갈리지 않게 남색 뒷면으로. 뽑힌 패는 한 단 올라오고 이름이 붙는다. */
+.ogrid {
+  display: grid; grid-template-columns: repeat(6, auto);
+  justify-content: center; gap: 6px 9px; padding: 3px 0 2px;
+}
+.ocell { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 40px; }
+.otile {
+  width: 34px; height: 46px; border-radius: 7px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; font-weight: 900; font-variant-numeric: tabular-nums;
+  background: linear-gradient(160deg, #3f5f8c, #24406a 60%, #1c3456);
+  border: 1px solid #16294a; color: transparent;
+  box-shadow: 0 3px 0 #0f1e36aa, 0 5px 10px rgba(30,40,55,.2);
+  transition: transform .15s ease, opacity .2s ease;
+}
+.otile:not(.open)::after { content: '?'; color: rgba(255,255,255,.45); font-size: 16px; font-weight: 700; }
+.otile.open { background: linear-gradient(170deg, #ffffff, #e9eef5); color: #1f3657; border-color: #b9c4d3; box-shadow: 0 3px 0 #98a3b2aa, 0 5px 10px rgba(30,40,55,.18); }
+.otile.taken { transform: translateY(-4px); }
+.otile.minepick { outline: 2px solid var(--accent); outline-offset: 2px; }
+.otile.best { outline: 3px solid #d4a23c; outline-offset: 2px; color: #7a5410; box-shadow: 0 3px 0 #98a3b2aa, 0 0 18px rgba(212,162,60,.7); }
+.otile.pick { cursor: pointer; }
+@media (hover: hover) { .otile.pick:hover { transform: translateY(-6px); box-shadow: 0 3px 0 #0f1e36aa, 0 12px 18px rgba(30,40,55,.3); } }
+.oboard.can .otile.pick { box-shadow: 0 3px 0 #0f1e36aa, 0 0 0 2px var(--accent-soft), 0 5px 10px rgba(30,40,55,.2); }
+.oboard.done .otile:not(.taken) { opacity: .28; }
+.otag { font-size: 10px; font-weight: 700; color: var(--dim); height: 13px; line-height: 13px; white-space: nowrap; }
+.otile.lift { animation: olift .42s cubic-bezier(.2,1.4,.4,1); }
+@keyframes olift { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-12px) scale(1.1); } 100% { transform: translateY(-4px); } }
+.otile.flip { animation: oflip .55s ease; }
+@keyframes oflip { 0% { transform: translateY(-4px) rotateY(90deg); } 100% { transform: translateY(-4px) rotateY(0); } }
+
+/* ════════════════ 가운데 큰 안내 ════════════════
+   단계가 넘어가는 순간(선후공 정하기 시작, 선공 결정)에만 잠깐 뜬다. 클릭은 통과한다. */
+.banner {
+  position: fixed; left: 50%; top: 44%; z-index: 26; pointer-events: none;
+  transform: translate(-50%, -50%); opacity: 0; visibility: hidden;
+  min-width: min(360px, 88vw); max-width: 92vw; padding: 18px 30px 17px; text-align: center;
+  border-radius: 18px; background: rgba(255,255,255,.97);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 6px var(--accent-soft), 0 24px 60px -14px rgba(30,40,55,.5);
+}
+.banner.on { visibility: visible; animation: bannerIn 1.9s cubic-bezier(.2,1.2,.4,1) forwards; }
+@keyframes bannerIn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.8); }
+  14%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  24%  { transform: translate(-50%, -50%) scale(1); }
+  82%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -58%) scale(.98); }
+}
+.bn-title { font-size: 30px; font-weight: 900; letter-spacing: .06em; color: var(--accent); }
+.bn-sub { font-size: 13px; color: var(--dim); margin-top: 6px; font-weight: 600; word-break: keep-all; }
+@media (max-width: 560px) { .bn-title { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { .stage.fresh, .otile.lift, .otile.flip { animation: none; } }
+
+/* ---------- 한 화면에 담기 (가운데 안내판을 넣은 뒤) ----------
+   아래 조작판을 없애고 숫자판을 가운데로 옮겼다. 위쪽 띠와 여백도 조금씩 줄인다. */
+#panel { display: none; }
+#game { padding-bottom: 8px; }
+.table { padding-top: 62px; margin-bottom: 8px; }
+.nowband { top: 12px; height: 40px; }
+.announce { top: 48px; padding-top: 6px; padding-bottom: 6px; }
+.announce .tile { --tilew: 32px; --tileh: 44px; font-size: 17px; }
+.stage { padding: 7px 12px 9px; margin-bottom: 8px; }
+.st-steps { margin-bottom: 3px; }
+.st-step { font-size: 10px; padding: 1px 7px; }
+.st-acts { margin-top: 7px; }
+
+/* 가져온 패는 바닥 옆에 — 아래로 쌓으면 가운데 줄이 길어진다 */
+.floorbody { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.piles { min-width: 0; }
+.floorbody .drawn-box { margin: 0; flex: none; padding: 8px 11px 9px; }
+.st-text:empty { display: none; }

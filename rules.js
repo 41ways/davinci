@@ -96,6 +96,7 @@
       handSize: size,
       ready: {},            // 시작 정리를 마친 사람
       firstId: null,        // 선공
+      order: null,          // 선후공 정하기 — {deck, picks, winnerId, choice}
       phase: 'setup',       // setup | order | draw | guess | decide | place | penalty | over
       drawn: null,
       pending: null,        // {tile, faceUp} 놓을 자리를 고르는 중
@@ -191,26 +192,110 @@
       return { ok: false, error: '아직 ' + (s.handSize - me.hand.length) + '장 더 골라야 합니다' };
     }
     s.ready[pid] = true;
+    setupCheck(s);
+    return { ok: true };
+  }
 
+  // 모두 정리를 마쳤으면 선후공 정하기로 넘어간다
+  function setupCheck(s) {
+    if (s.phase !== 'setup') return;
     var waiting = s.players.filter(function (p) { return !p.out && !s.ready[p.id]; });
-    if (!waiting.length) {
-      var alive = alivePlayers(s);
-      var first = alive[Math.floor(Math.random() * alive.length)];
-      for (var i = 0; i < s.players.length; i++) if (s.players[i].id === first.id) s.turn = i;
-      s.firstId = first.id;
-      s.phase = 'order';
-      s.lastEvent = { type: 'order', firstId: first.id, firstName: first.name };
-      say(s, '선공은 ' + first.name);
+    if (waiting.length) return;
+    var deck = [];
+    for (var n = 0; n <= MAX_N; n++) deck.push(n);
+    s.order = { deck: shuffle(deck, Math.random), picks: {}, winnerId: null, choice: null };
+    s.phase = 'order';
+    s.lastEvent = { type: 'orderStart' };
+  }
+
+  /* ---------- 선후공 정하기 ----------
+     게임 타일과 따로 둔 순서 패(0~11)를 한 장씩 뽑는다. 게임 타일로 뽑으면
+     바닥에 무엇이 남았는지가 드러나 버린다. 숫자가 모두 달라 비길 일이 없다.
+     가장 높은 사람이 선공(내가 먼저)이나 후공(내가 마지막)을 고른다. 차례는 시계방향. */
+  function orderPick(s, pid, idx) {
+    if (s.phase !== 'order' || !s.order) return { ok: false, error: '지금은 뽑을 수 없습니다' };
+    var o = s.order;
+    if (o.winnerId) return { ok: false, error: '이미 다 뽑았습니다' };
+    var me = findPlayer(s, pid);
+    if (!me || me.out) return { ok: false, error: '없는 사람입니다' };
+    if (o.picks.hasOwnProperty(pid)) return { ok: false, error: '이미 뽑았습니다' };
+    if (!(idx >= 0 && idx < o.deck.length)) return { ok: false, error: '없는 자리입니다' };
+    for (var k in o.picks) if (o.picks[k] === idx) return { ok: false, error: '이미 누가 뽑은 패입니다' };
+    o.picks[pid] = idx;
+    s.lastEvent = { type: 'orderPick', by: pid, index: idx };
+    orderSettle(s);
+    return { ok: true };
+  }
+
+  // 남은 사람이 모두 뽑았으면 가장 높은 사람을 가린다
+  function orderSettle(s) {
+    var o = s.order;
+    if (s.phase !== 'order' || !o || o.choice) return;
+    var alive = alivePlayers(s);
+    if (o.winnerId && findPlayer(s, o.winnerId).out) o.winnerId = null;   // 고르기 전에 나갔다
+    if (o.winnerId) return;
+    if (!alive.every(function (p) { return o.picks.hasOwnProperty(p.id); })) return;
+    var best = null;
+    alive.forEach(function (p) {
+      if (!best || o.deck[o.picks[p.id]] > o.deck[o.picks[best.id]]) best = p;
+    });
+    o.winnerId = best.id;
+    s.lastEvent = { type: 'orderReveal', winnerId: best.id, winnerName: best.name,
+                    n: o.deck[o.picks[best.id]] };
+    say(s, best.name + ' 최고 ' + o.deck[o.picks[best.id]]);
+  }
+
+  // first === true 면 선공(내가 먼저), false 면 후공(시계방향 다음 사람부터, 나는 마지막)
+  function orderChoose(s, pid, first) {
+    if (s.phase !== 'order' || !s.order || !s.order.winnerId) return { ok: false, error: '지금은 고를 수 없습니다' };
+    var o = s.order;
+    if (o.choice) return { ok: false, error: '이미 골랐습니다' };
+    if (o.winnerId !== pid) return { ok: false, error: '가장 높은 사람만 고를 수 있습니다' };
+    var n = s.players.length, at = 0, i;
+    for (i = 0; i < n; i++) if (s.players[i].id === pid) at = i;
+    var start = at;
+    if (!first) {
+      for (i = 1; i <= n; i++) {
+        var idx = (at + i) % n;
+        if (!s.players[idx].out) { start = idx; break; }
+      }
     }
+    s.turn = start;
+    s.firstId = s.players[start].id;
+    o.choice = first ? 'first' : 'last';
+    s.lastEvent = { type: 'orderChosen', by: pid, byName: findPlayer(s, pid).name,
+                    choice: o.choice, firstId: s.firstId, firstName: s.players[start].name };
+    say(s, '선공은 ' + s.players[start].name);
     return { ok: true };
   }
 
   // 순서 발표가 끝나면 판을 시작한다 (방장이 시간 맞춰 호출)
   function beginPlay(s) {
-    if (s.phase !== 'order') return { ok: false, error: '지금 시작할 수 없습니다' };
+    if (s.phase !== 'order' || !s.order || !s.order.choice) return { ok: false, error: '지금 시작할 수 없습니다' };
     s.phase = 'draw';
     s.lastEvent = { type: 'begin' };
     return { ok: true };
+  }
+
+  // 연결이 끊긴 사람을 탈락시키고, 판이 그 사람을 기다리며 멈추지 않게 한다
+  function dropPlayer(s, pid) {
+    var p = findPlayer(s, pid);
+    if (!p || p.out || s.phase === 'over') return;
+    p.out = true;
+    say(s, p.name + ' 연결 끊김 — 탈락 처리');
+    if (checkWin(s)) return;
+    if (s.phase === 'setup') { setupCheck(s); return; }
+    if (s.phase === 'order') {
+      if (!s.order.choice) { orderSettle(s); return; }
+      if (current(s).id === pid) {             // 선공으로 정해진 사람이 나갔다
+        for (var i = 1; i <= s.players.length; i++) {
+          var idx = (s.turn + i) % s.players.length;
+          if (!s.players[idx].out) { s.turn = idx; s.firstId = s.players[idx].id; break; }
+        }
+      }
+      return;
+    }
+    if (current(s).id === pid) nextTurn(s);
   }
 
   /* ---------- 액션 ---------- */
@@ -335,6 +420,7 @@
     var isCur = s.phase !== 'over' && cur && cur.id === pid;
     return {
       phase: s.phase, turn: s.turn, winner: s.winner, me: pid, firstId: s.firstId,
+      order: orderView(s, pid),
       ready: JSON.parse(JSON.stringify(s.ready || {})),
       myJokers: (function () {
         var me = null, out = [];
@@ -370,6 +456,23 @@
     };
   }
 
+  // 순서 패: 누가 어느 패를 뽑았는지는 모두 본다. 숫자는 다 뽑은 뒤에 한꺼번에 뒤집는다.
+  // 내가 뽑은 숫자만은 바로 보인다.
+  function orderView(s, pid) {
+    var o = s.order;
+    if (!o) return null;
+    var owner = {};
+    for (var k in o.picks) owner[o.picks[k]] = k;
+    var open = !!o.winnerId;
+    return {
+      tiles: o.deck.map(function (n, i) {
+        var by = owner.hasOwnProperty(i) ? owner[i] : null;
+        return { by: by, n: by !== null && (open || by === pid) ? n : null };
+      }),
+      revealed: open, winnerId: o.winnerId, choice: o.choice
+    };
+  }
+
   // 숫자까지 확정된 타일을 뺀 나머지
   function unseenTiles(view) {
     var known = {};
@@ -390,7 +493,7 @@
     validPlacements: validPlacements, hiddenCount: hiddenCount,
     alivePlayers: alivePlayers, current: current,
     newGame: newGame, draftPick: draftPick, setupMove: setupMove, setupReady: setupReady,
-    beginPlay: beginPlay,
+    orderPick: orderPick, orderChoose: orderChoose, beginPlay: beginPlay, dropPlayer: dropPlayer,
     draw: draw, guess: guess, decide: decide, place: place, penalty: penalty,
     viewFor: viewFor, unseenTiles: unseenTiles
   };
