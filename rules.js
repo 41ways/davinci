@@ -295,7 +295,11 @@
       }
       return;
     }
-    if (current(s).id === pid) nextTurn(s);
+    if (current(s).id === pid) {
+      // 집어 든 채 나갔으면 그 타일을 바닥에 돌려놓는다. nextTurn 이 drawn 을 비우면서 사라졌다.
+      if (s.drawn) { s.pool.push(s.drawn); s.drawn = null; }
+      nextTurn(s);
+    }
   }
 
   /* ---------- 액션 ---------- */
@@ -432,7 +436,9 @@
       handSize: s.handSize,
       pool: s.pool.map(function (t) { return { color: t.color }; }),   // 색만
       log: s.log.slice(-12),
-      lastEvent: s.lastEvent,
+      // 조커를 옮겼다는 사실은 본인만 안다 — 남에게 '누가' 옮겼는지 보내면 조커를 쥔 사람이 드러난다
+      lastEvent: (s.lastEvent && s.lastEvent.type === 'setupMove' && s.lastEvent.by !== pid)
+        ? { type: 'setupMove' } : s.lastEvent,
       drawn: isCur ? s.drawn : null,
       hasDrawn: !!s.drawn,
       drawnColor: s.drawn ? s.drawn.color : null,

@@ -202,6 +202,17 @@ section('선후공 정하기');
   ok('선공이 나가면 다음 사람이 받는다', R.current(s7).id === 'p' + ((wi + 1) % 3) && R.beginPlay(s7).ok);
 })();
 
+/* ---------------- 집어 든 채 나가기 ---------------- */
+(function () {
+  var s = begin(R.newGame(P(3), 11));
+  var before = allTiles(s).length;
+  var cur = R.current(s).id;
+  R.draw(s, cur, 0);
+  ok('집어 든 타일이 따로 있다', !!s.drawn);
+  R.dropPlayer(s, cur);
+  ok('집어 든 채 나가면 그 타일은 바닥으로 돌아온다', !s.drawn && allTiles(s).length === before, allTiles(s).length + '/' + before);
+})();
+
 /* ---------------- 준비 전 색 은닉 ---------------- */
 section('준비 전 색 은닉');
 (function(){
